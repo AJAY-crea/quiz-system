@@ -1,0 +1,104 @@
+package com.teamam.quiz.domain;
+
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
+import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "questions")
+public class Question {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id", nullable = false)
+    private QuizSession session;
+
+    /** 1-based release order within the session. */
+    private int orderIndex;
+
+    @Enumerated(EnumType.STRING)
+    private QuestionType type;
+
+    @Column(length = 2000)
+    private String text;
+
+    @ElementCollection
+    @CollectionTable(name = "question_options", joinColumns = @JoinColumn(name = "question_id"))
+    @OrderColumn(name = "option_index")
+    @Column(name = "option_text")
+    private List<String> options = new ArrayList<>();
+
+    private Integer correctOptionIndex;
+
+    private int durationSeconds = 30;
+
+    protected Question() {
+    }
+
+    public Question(QuizSession session, int orderIndex, QuestionType type, String text) {
+        this.session = session;
+        this.orderIndex = orderIndex;
+        this.type = type;
+        this.text = text;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public QuizSession getSession() {
+        return session;
+    }
+
+    public int getOrderIndex() {
+        return orderIndex;
+    }
+
+    public QuestionType getType() {
+        return type;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public List<String> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
+    }
+
+    public Integer getCorrectOptionIndex() {
+        return correctOptionIndex;
+    }
+
+    public void setCorrectOptionIndex(Integer correctOptionIndex) {
+        this.correctOptionIndex = correctOptionIndex;
+    }
+
+    public int getDurationSeconds() {
+        return durationSeconds;
+    }
+
+    public void setDurationSeconds(int durationSeconds) {
+        this.durationSeconds = durationSeconds;
+    }
+}
