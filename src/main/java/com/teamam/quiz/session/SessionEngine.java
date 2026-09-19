@@ -5,6 +5,7 @@ import com.teamam.quiz.domain.QuizSession;
 import com.teamam.quiz.domain.SessionStatus;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
+import java.time.Instant;
 import java.util.NoSuchElementException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -59,6 +60,9 @@ public class SessionEngine {
         session.setCurrentQuestionOrder(question.getOrderIndex());
         session.setStatus(SessionStatus.RUNNING);
         sessionRepository.save(session);
+
+        question.setReleasedAt(Instant.now());
+        questionRepository.save(question);
 
         messagingTemplate.convertAndSend(
                 "/topic/session/" + sessionId + "/question", QuestionView.of(question));
