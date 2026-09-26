@@ -6,6 +6,7 @@ import com.teamam.quiz.domain.SessionStatus;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.NoSuchElementException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -61,12 +62,17 @@ public class SessionEngine {
         session.setStatus(SessionStatus.RUNNING);
         sessionRepository.save(session);
 
-        question.setReleasedAt(Instant.now());
+        // Millisecond precision so the deadline read back after a restart equals the one computed before it.
+        question.setReleasedAt(Instant.now().truncatedTo(ChronoUnit.MILLIS));
         questionRepository.save(question);
 
-        messagingTemplate.convertAndSend(
-                "/topic/session/" + sessionId + "/question", QuestionView.of(question));
+        announce(sessionId, new SessionEvent(SessionEvent.RELEASED, question.getId()));
         return question;
+    }
+
+    /** Tells every connected browser to refetch its state (e.g. after a deadline extension). */
+    public void announce(Long sessionId, SessionEvent event) {
+        messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/question", event);
     }
 
     private QuizSession requireSession(Long sessionId) {

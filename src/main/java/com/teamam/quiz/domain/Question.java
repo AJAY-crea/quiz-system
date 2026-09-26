@@ -52,6 +52,9 @@ public class Question {
     /** Set by SessionEngine.release(); null until this question has been released. */
     private Instant releasedAt;
 
+    /** Extra seconds granted by the instructor after release (e.g. after an app restart). */
+    private int extensionSeconds = 0;
+
     protected Question() {
     }
 
@@ -112,5 +115,13 @@ public class Question {
 
     public void setReleasedAt(Instant releasedAt) {
         this.releasedAt = releasedAt;
+    }
+
+    public int getExtensionSeconds() {
+        return extensionSeconds;
+    }
+
+    public void setExtensionSeconds(int extensionSeconds) {
+        this.extensionSeconds = extensionSeconds;
     }
 }

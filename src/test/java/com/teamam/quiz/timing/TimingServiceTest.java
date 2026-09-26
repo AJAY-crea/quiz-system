@@ -42,4 +42,22 @@ class TimingServiceTest {
         assertThat(timingService.isOnTime(question.getId(), deadline.plusMillis(200))).isTrue();
         assertThat(timingService.isOnTime(question.getId(), deadline.plusSeconds(2))).isFalse();
     }
+
+    // Guards against: the instructor's extension not actually moving the server-side cutoff.
+    @Test
+    void extendDeadlineMovesCutoff() {
+        QuizSession session = sessionEngine.createSession("Extension test session");
+        Question question = questionRepository.save(
+                new Question(session, 1, QuestionType.MCQ, "3 + 3 = ?"));
+        question.setDurationSeconds(10);
+        questionRepository.save(question);
+        sessionEngine.release(session.getId(), question.getId());
+
+        Instant original = timingService.deadlineFor(question.getId());
+        Instant extended = timingService.extendDeadline(question.getId(), 20);
+
+        assertThat(extended).isEqualTo(original.plusSeconds(20));
+        assertThat(timingService.deadlineFor(question.getId())).isEqualTo(extended);
+        assertThat(timingService.isOnTime(question.getId(), original.plusSeconds(15))).isTrue();
+    }
 }

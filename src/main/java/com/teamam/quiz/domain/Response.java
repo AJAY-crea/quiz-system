@@ -32,14 +32,23 @@ public class Response {
     @Column(name = "roll_no")
     private String rollNo;
 
+    /** Generated once by the browser and reused on every resend of the same answer. */
+    @Column(length = 64)
+    private String submissionId;
+
+    /** Canonical option index (already remapped from the student's shuffled view). */
     private Integer selectedOptionIndex;
 
     @Column(length = 4000)
     private String typedAnswer;
 
-    private Instant submittedAt = Instant.now();
+    /** Server clock at arrival; never a client-reported time. */
+    private Instant submittedAt;
 
     private boolean onTime = true;
+
+    /** MCQ correctness; null for typed answers awaiting instructor review. Late answers keep it but are excluded from scoring. */
+    private Boolean correct;
 
     protected Response() {
     }
@@ -96,5 +105,21 @@ public class Response {
 
     public void setOnTime(boolean onTime) {
         this.onTime = onTime;
+    }
+
+    public String getSubmissionId() {
+        return submissionId;
+    }
+
+    public void setSubmissionId(String submissionId) {
+        this.submissionId = submissionId;
+    }
+
+    public Boolean getCorrect() {
+        return correct;
+    }
+
+    public void setCorrect(Boolean correct) {
+        this.correct = correct;
     }
 }
