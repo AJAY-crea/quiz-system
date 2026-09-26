@@ -39,6 +39,13 @@ public class QuizSession {
     @Column(name = "roll_no")
     private Set<String> rosterRollNumbers = new HashSet<>();
 
+    /** Base64 HMAC key for this session's rotating join codes and tickets; created when joining first opens. */
+    @Column(length = 64)
+    private String joinSecret;
+
+    /** New joins are allowed until this instant; null means joining has never been opened. */
+    private Instant joinOpenUntil;
+
     protected QuizSession() {
     }
 
@@ -76,5 +83,21 @@ public class QuizSession {
 
     public Set<String> getRosterRollNumbers() {
         return rosterRollNumbers;
+    }
+
+    public String getJoinSecret() {
+        return joinSecret;
+    }
+
+    public void setJoinSecret(String joinSecret) {
+        this.joinSecret = joinSecret;
+    }
+
+    public Instant getJoinOpenUntil() {
+        return joinOpenUntil;
+    }
+
+    public void setJoinOpenUntil(Instant joinOpenUntil) {
+        this.joinOpenUntil = joinOpenUntil;
     }
 }

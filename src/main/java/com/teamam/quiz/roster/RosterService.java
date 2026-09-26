@@ -6,9 +6,11 @@ import com.teamam.quiz.domain.Student;
 import com.teamam.quiz.repository.ParticipantRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
 import com.teamam.quiz.repository.StudentRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,14 +20,17 @@ public class RosterService {
     private final QuizSessionRepository sessionRepository;
     private final StudentRepository studentRepository;
     private final ParticipantRepository participantRepository;
+    private final JoinWindowService joinWindowService;
 
     public RosterService(
             QuizSessionRepository sessionRepository,
             StudentRepository studentRepository,
-            ParticipantRepository participantRepository) {
+            ParticipantRepository participantRepository,
+            JoinWindowService joinWindowService) {
         this.sessionRepository = sessionRepository;
         this.studentRepository = studentRepository;
         this.participantRepository = participantRepository;
+        this.joinWindowService = joinWindowService;
     }
 
     @Transactional
@@ -40,45 +45,59 @@ public class RosterService {
         sessionRepository.save(session);
     }
 
+    /**
+     * Join rules, in order:
+     * 1. the same roll number rejoining from the same device is always let back in (reload, reconnect);
+     * 2. anything else needs a valid ticket from scanning the live QR;
+     * 3. the roll number must be on the roster;
+     * 4. device mismatches are flagged for the instructor, never blocked.
+     */
     @Transactional
-    public JoinResult join(Long sessionId, String rollNo, String deviceToken) {
+    public JoinResult join(Long sessionId, String rollNo, String deviceToken, String ticket) {
         QuizSession session = requireSession(sessionId);
+        Optional<Participant> byRollNo = participantRepository.findBySessionIdAndRollNo(sessionId, rollNo);
+
+        boolean sameDeviceRejoin = byRollNo.isPresent() && byRollNo.get().getDeviceToken().equals(deviceToken);
+        if (sameDeviceRejoin) {
+            return JoinResult.accepted(rollNo, deviceToken);
+        }
+
+        if (!joinWindowService.isValidTicket(sessionId, ticket)) {
+            return JoinResult.rejectedInvalidTicket(rollNo);
+        }
 
         if (!session.getRosterRollNumbers().contains(rollNo)) {
             return JoinResult.rejectedUnlisted(rollNo);
         }
 
-        Optional<Participant> byRollNo = participantRepository.findBySessionIdAndRollNo(sessionId, rollNo);
-        Optional<Participant> byDeviceToken =
-                participantRepository.findBySessionIdAndDeviceToken(sessionId, deviceToken);
+        List<String> reasons = new ArrayList<>();
+        if (byRollNo.isPresent()) {
+            reasons.add("roll number rejoined from a different device");
+        }
+        participantRepository.findAllBySessionIdAndDeviceToken(sessionId, deviceToken).stream()
+                .filter(other -> !other.getRollNo().equals(rollNo))
+                .map(other -> "device was already used by " + other.getRollNo() + " in this session")
+                .forEach(reasons::add);
 
-        boolean rollNoSeenOnDifferentDevice =
-                byRollNo.isPresent() && !byRollNo.get().getDeviceToken().equals(deviceToken);
-        boolean deviceSeenUnderDifferentRollNo =
-                byDeviceToken.isPresent() && !byDeviceToken.get().getRollNo().equals(rollNo);
+        List<Participant> earlierSessions =
+                participantRepository.findByDeviceTokenAndRollNoNotAndSessionIdNot(deviceToken, rollNo, sessionId);
+        if (!earlierSessions.isEmpty()) {
+            String otherRolls = earlierSessions.stream()
+                    .map(Participant::getRollNo)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.joining(", "));
+            reasons.add("device was used by " + otherRolls + " in an earlier session");
+        }
 
         Participant participant = byRollNo.orElseGet(() -> new Participant(session, rollNo, deviceToken));
         participant.setDeviceToken(deviceToken);
-
-        if (rollNoSeenOnDifferentDevice || deviceSeenUnderDifferentRollNo) {
-            String reason = flagReasonFor(rollNoSeenOnDifferentDevice, deviceSeenUnderDifferentRollNo);
-            participant.flag(reason);
-            participantRepository.save(participant);
-            return JoinResult.acceptedFlagged(rollNo, deviceToken, reason);
-        }
-
+        reasons.forEach(participant::flag);
         participantRepository.save(participant);
-        return JoinResult.accepted(rollNo, deviceToken);
-    }
 
-    private String flagReasonFor(boolean rollNoSeenOnDifferentDevice, boolean deviceSeenUnderDifferentRollNo) {
-        if (rollNoSeenOnDifferentDevice && deviceSeenUnderDifferentRollNo) {
-            return "roll number rejoined from a different device, and that device was previously used by a different roll number";
-        }
-        if (rollNoSeenOnDifferentDevice) {
-            return "roll number rejoined from a different device";
-        }
-        return "device rejoined under a different roll number";
+        return reasons.isEmpty()
+                ? JoinResult.accepted(rollNo, deviceToken)
+                : JoinResult.acceptedFlagged(rollNo, deviceToken, String.join(Participant.FLAG_SEPARATOR, reasons));
     }
 
     private QuizSession requireSession(Long sessionId) {

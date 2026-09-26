@@ -34,6 +34,7 @@
       background: var(--accent); border: 0; border-radius: 8px; cursor: pointer;
     }
     .error { color: var(--warn); min-height: 1.5em; }
+    .hint { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
     .bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 16px; }
     .who { color: var(--muted); font-size: 14px; }
     .pill { font-size: 13px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
@@ -53,14 +54,21 @@
   <section id="join" class="card">
     <h1>Join the class quiz</h1>
     <form id="join-form">
-      <label class="field">Session number
-        <input id="session-id" inputmode="numeric" required autocomplete="off">
-      </label>
+      <div id="manual-fields">
+        <p class="hint">Scan the QR code on the screen, or type the two values shown under it.</p>
+        <label class="field">Session number
+          <input id="session-id" inputmode="numeric" autocomplete="off">
+        </label>
+        <label class="field">Join code
+          <input id="join-code" type="text" autocomplete="off" autocapitalize="characters">
+        </label>
+      </div>
       <label class="field">Roll number
         <input id="roll-no" type="text" required autocomplete="off" autocapitalize="characters">
       </label>
+      <p class="hint">Your roll number is linked to this phone.</p>
       <p id="join-error" class="error"></p>
-      <button type="submit">Join</button>
+      <button type="submit" id="join-button">Join</button>
     </form>
   </section>
 

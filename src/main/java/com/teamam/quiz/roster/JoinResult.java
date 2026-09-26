@@ -13,4 +13,8 @@ public record JoinResult(JoinOutcome outcome, String rollNo, String deviceToken,
     public static JoinResult rejectedUnlisted(String rollNo) {
         return new JoinResult(JoinOutcome.REJECTED_UNLISTED, rollNo, null, null);
     }
+
+    public static JoinResult rejectedInvalidTicket(String rollNo) {
+        return new JoinResult(JoinOutcome.REJECTED_INVALID_TICKET, rollNo, null, null);
+    }
 }

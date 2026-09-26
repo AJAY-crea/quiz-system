@@ -1,5 +1,6 @@
 package com.teamam.quiz.config;
 
+import com.teamam.quiz.roster.JoinRefusedException;
 import com.teamam.quiz.session.NotAParticipantException;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -16,8 +17,8 @@ public class ApiExceptionHandler {
         return error(HttpStatus.NOT_FOUND, e);
     }
 
-    @ExceptionHandler(NotAParticipantException.class)
-    public ResponseEntity<Map<String, String>> forbidden(NotAParticipantException e) {
+    @ExceptionHandler({NotAParticipantException.class, JoinRefusedException.class})
+    public ResponseEntity<Map<String, String>> forbidden(RuntimeException e) {
         return error(HttpStatus.FORBIDDEN, e);
     }
 

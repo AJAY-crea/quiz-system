@@ -122,7 +122,7 @@ class ResilienceServiceTest {
     void rejectsStaleDeviceToken() {
         String rollNo = "CS23B105";
         TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
-        roster.join(quiz.sessionId, rollNo, "dev-another-phone");
+        roster.join(quiz.sessionId, rollNo, "dev-another-phone", TestQuiz.joinTicket(ctx, quiz.sessionId));
 
         AcceptResult result = resilience.accept(quiz.sessionId, quiz.answer("sub-5", rollNo, 0));
 

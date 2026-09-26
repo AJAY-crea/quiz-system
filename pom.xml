@@ -44,6 +44,12 @@
       <artifactId>poi-ooxml</artifactId>
       <version>5.3.0</version>
     </dependency>
+    <!-- QR codes for the join screen, drawn server-side (Apache-2.0; no CDN needed in class). -->
+    <dependency>
+      <groupId>com.google.zxing</groupId>
+      <artifactId>core</artifactId>
+      <version>3.5.3</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

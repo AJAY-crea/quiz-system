@@ -33,34 +33,88 @@ function safeSet(key, value) {
   try { localStorage.setItem(key, value); } catch { /* ignore */ }
 }
 
+// Scanning proves you were in the room while joining was open: the QR's code is swapped straight
+// away for a ticket that gives you 2 minutes to type your roll number.
+let pendingJoin = null; // { sessionId, ticket }
+
+async function fetchTicket(sessionId, code) {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}/join-ticket?code=${encodeURIComponent(code)}`,
+    { method: 'POST' },
+  ).catch(() => null);
+  if (!response) throw new Error('Cannot reach the quiz server. Check you are on the classroom Wi-Fi.');
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error ?? 'Could not start joining. Check the session number.');
+  return body.ticket;
+}
+
 async function join(event) {
   event.preventDefault();
-  const sessionId = $('session-id').value.trim();
   const rollNo = $('roll-no').value.trim().toUpperCase();
   const token = deviceToken();
   $('join-error').textContent = '';
 
+  try {
+    if (!pendingJoin) {
+      const sessionId = $('session-id').value.trim();
+      const code = $('join-code').value.trim();
+      if (!sessionId || !code) throw new Error('Enter the session number and join code shown on the screen.');
+      pendingJoin = { sessionId, ticket: await fetchTicket(sessionId, code) };
+    }
+  } catch (e) {
+    $('join-error').textContent = e.message;
+    return;
+  }
+
+  const { sessionId, ticket } = pendingJoin;
   const response = await fetch(`/api/roster/${encodeURIComponent(sessionId)}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rollNo, deviceToken: token }),
+    body: JSON.stringify({ rollNo, deviceToken: token, ticket }),
   }).catch(() => null);
 
   if (!response) {
-    $('join-error').textContent = 'Cannot reach the quiz server. Check you are on the classroom network.';
+    $('join-error').textContent = 'Cannot reach the quiz server. Check you are on the classroom Wi-Fi.';
     return;
   }
-  if (response.status === 403) {
+  const result = await response.json().catch(() => ({}));
+  if (result.outcome === 'REJECTED_UNLISTED') {
     $('join-error').textContent = `${rollNo} is not on this class's roster.`;
     return;
   }
+  if (result.outcome === 'REJECTED_INVALID_TICKET') {
+    pendingJoin = null;
+    showManualFields(true);
+    $('join-error').textContent = 'Your scan has expired. Scan the QR code on the screen again.';
+    return;
+  }
   if (!response.ok) {
-    $('join-error').textContent = 'Could not join. Check the session number.';
+    $('join-error').textContent = result.error ?? 'Could not join. Ask the instructor.';
     return;
   }
   identity = { sessionId, rollNo, deviceToken: token };
   safeSet('quiz:identity', JSON.stringify(identity));
+  safeSet('quiz:rollNo', rollNo);
+  history.replaceState(null, '', location.pathname); // don't reuse a stale QR code on reload
   startQuiz();
+}
+
+function showManualFields(show) {
+  $('manual-fields').hidden = !show;
+}
+
+async function startFromQr(sessionId, code) {
+  showManualFields(false);
+  $('join-button').disabled = true;
+  try {
+    pendingJoin = { sessionId, ticket: await fetchTicket(sessionId, code) };
+  } catch (e) {
+    showManualFields(true);
+    $('session-id').value = sessionId;
+    $('join-error').textContent = e.message;
+  } finally {
+    $('join-button').disabled = false;
+  }
 }
 
 // ---------- connection + resend ----------
@@ -241,6 +295,10 @@ function showMessage(text) {
 $('join-form').addEventListener('submit', join);
 $('answer-form').addEventListener('submit', submitAnswer);
 
+const params = new URLSearchParams(location.search);
+const scannedSession = params.get('s');
+const scannedCode = params.get('c');
+
 const saved = safeGet('quiz:identity');
 if (saved) {
   try {
@@ -249,4 +307,12 @@ if (saved) {
     identity = null;
   }
 }
-if (identity) startQuiz();
+// A QR for a different (e.g. this week's) session means a new join, not resuming the old one.
+if (identity && scannedSession && identity.sessionId !== scannedSession) identity = null;
+
+$('roll-no').value = safeGet('quiz:rollNo') ?? '';
+if (identity) {
+  startQuiz();
+} else if (scannedSession && scannedCode) {
+  startFromQr(scannedSession, scannedCode);
+}

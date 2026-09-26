@@ -33,9 +33,10 @@ public class RosterController {
 
     @PostMapping("/{sessionId}/join")
     public ResponseEntity<JoinResult> join(@PathVariable Long sessionId, @RequestBody JoinRequest request) {
-        JoinResult result = rosterService.join(sessionId, request.rollNo(), request.deviceToken());
-        HttpStatus status =
-                result.outcome() == JoinOutcome.REJECTED_UNLISTED ? HttpStatus.FORBIDDEN : HttpStatus.OK;
+        JoinResult result = rosterService.join(sessionId, request.rollNo(), request.deviceToken(), request.ticket());
+        boolean rejected = result.outcome() == JoinOutcome.REJECTED_UNLISTED
+                || result.outcome() == JoinOutcome.REJECTED_INVALID_TICKET;
+        HttpStatus status = rejected ? HttpStatus.FORBIDDEN : HttpStatus.OK;
         return ResponseEntity.status(status).body(result);
     }
 }

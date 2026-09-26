@@ -19,18 +19,32 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
 ./mvnw test
 ```
 
-## Student page
+## Running a class
 
-Students open `http://<instructor-laptop-ip>:8080/student.html` on their phones, enter the session
-number and their roll number, and answer as questions are released. Nothing to install; no internet
-needed (all scripts are served by the app itself).
+1. On the instructor's laptop, open **http://localhost:8080/instructor.html**. This page and all
+   instructor actions only work from the laptop itself.
+2. Create a session, upload the roster CSV, and add questions.
+3. Pick the laptop's classroom Wi-Fi address (laptops list VPN/VirtualBox adapters too), then
+   **Open joining** for e.g. 60 s. Students scan the QR with their phone camera. The code changes
+   every 15 s, so a forwarded photo stops working; the session number and code under the QR are a
+   typed fallback.
+4. **Release next question**, and use **+30 s** if needed. Answers arrive live.
+5. **Refresh attendance**: present = answered at least 50% of released questions (late answers
+   count). Flags such as "device was already used by …" are for review, never penalties.
+
+Students need nothing installed and no internet. Everything is served by the laptop.
 
 ## API
 
-Instructor (REST):
+Instructor (REST, localhost only):
 
 | Action | Endpoint |
 |---|---|
+| Dashboard data | `GET /api/sessions/{sessionId}/dashboard` |
+| Open / close joining | `POST /api/sessions/{sessionId}/join-window/open?seconds=N`, `.../join-window/close` |
+| Current join code | `GET /api/sessions/{sessionId}/join-window` |
+| Join QR (SVG) | `GET /api/sessions/{sessionId}/join-qr.svg?base=http://<laptop-ip>:8080` |
+| Attendance | `GET /api/sessions/{sessionId}/attendance` |
 | Create session | `POST /api/sessions` `{"title": "..."}` |
 | Upload roster (CSV, one roll number per line, optional header/name column) | `POST /api/roster/{sessionId}/upload` (multipart `file`) |
 | Add question | `POST /api/sessions/{sessionId}/questions` `{"orderIndex":1,"type":"MCQ","text":"...","options":[...],"correctOptionIndex":2,"durationSeconds":60}` |
@@ -41,7 +55,8 @@ Student:
 
 | Action | Endpoint |
 |---|---|
-| Join (roster-verified) | `POST /api/roster/{sessionId}/join` `{"rollNo":"...","deviceToken":"..."}` |
+| Exchange scanned QR code for a 2-minute join ticket | `POST /api/sessions/{sessionId}/join-ticket?code=...` |
+| Join (roster-verified; ticket not needed to rejoin from the same phone) | `POST /api/roster/{sessionId}/join` `{"rollNo":"...","deviceToken":"...","ticket":"..."}` |
 | Current state (own option order, server-computed time left, already answered?) | `GET /api/sessions/{sessionId}/state?rollNo=...&deviceToken=...` |
 | Submit answer (STOMP) | send to `/app/session/{sessionId}/answer`, ack on `/user/queue/answer-ack` |
 | Question released / deadline extended (STOMP broadcast) | subscribe `/topic/session/{sessionId}/question` |
@@ -57,4 +72,8 @@ STOMP endpoint: `/ws` (SockJS) or `/ws/websocket` (plain WebSocket, used by `stu
   answers kept but marked late, stale devices rejected. The student page keeps unconfirmed answers in
   localStorage and resends them after reconnecting. After an instructor-app restart, sessions resume
   from the database. The instructor can extend a deadline.
-- **Week 3 (Ajay), not yet built:** attendance derivation, first instructor dashboard screen.
+- **Week 3 (Ajay):** attendance derivation, the instructor dashboard, and anti-proxy joining:
+  - a joining window the instructor controls;
+  - a rotating QR code exchanged for a 2-minute join ticket;
+  - a flag when one phone is used for different roll numbers, in this or an earlier session;
+  - instructor actions restricted to the laptop itself.

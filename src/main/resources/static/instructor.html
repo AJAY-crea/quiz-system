@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quiz Dashboard</title>
+  <style>
+    :root {
+      --bg: #f5f5f2; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #deded9;
+      --accent: #2f5bd3; --ok: #1f7a4d; --warn: #a15c00; --bad: #b3261e; --chip: #ececE7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161615; --card: #20201e; --text: #ececea; --muted: #a3a39d; --border: #34342f;
+        --accent: #7c9cf0; --ok: #5cc493; --warn: #f0b35a; --bad: #f2877e; --chip: #2c2c29;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+    header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 16px; margin: 0 0 12px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+    input, select, textarea, button { font: inherit; color: var(--text); }
+    input, select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-width: 0; }
+    textarea { width: 100%; min-height: 70px; resize: vertical; }
+    button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
+    button.secondary { background: var(--chip); color: var(--text); }
+    button:disabled { opacity: .45; cursor: default; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .stat { font-size: 28px; font-weight: 700; }
+    .qr-box { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .qr-box img { width: min(340px, 100%); aspect-ratio: 1; background: #fff; border-radius: 8px; }
+    .code { font: 700 22px/1 ui-monospace, Consolas, monospace; letter-spacing: 2px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--chip); }
+    .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+    #status { min-height: 1.5em; font-size: 14px; }
+    #status.error { color: var(--bad); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Quiz Dashboard</h1>
+    <div class="row">
+      <select id="session-select" aria-label="Session"></select>
+      <input id="new-title" placeholder="New session title" aria-label="New session title">
+      <button id="create-session">Create session</button>
+    </div>
+  </header>
+  <p id="status"></p>
+
+  <section class="grid" id="panels" hidden>
+    <div class="card">
+      <h2>1 · Roster and questions</h2>
+      <div class="row">
+        <input type="file" id="roster-file" accept=".csv,.txt" aria-label="Roster CSV">
+        <button id="upload-roster" class="secondary">Upload roster</button>
+      </div>
+      <p class="muted">CSV: one roll number per line (an optional header and name column are fine). On roster: <b id="roster-size">0</b></p>
+      <hr style="border:0;border-top:1px solid var(--border)">
+      <div class="row">
+        <select id="q-type" aria-label="Question type"><option value="MCQ">Multiple choice</option><option value="TYPED">Typed answer</option></select>
+        <input id="q-duration" type="number" min="5" value="60" style="width:90px" aria-label="Seconds"> <span class="muted">seconds</span>
+      </div>
+      <textarea id="q-text" placeholder="Question text"></textarea>
+      <textarea id="q-options" placeholder="Options, one per line (multiple choice only)"></textarea>
+      <div class="row">
+        <label class="muted">Correct option # <input id="q-correct" type="number" min="1" value="1" style="width:70px"></label>
+        <button id="add-question">Add question</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2 · Joining</h2>
+      <div class="row">
+        <input id="join-seconds" type="number" min="10" max="3600" value="60" style="width:90px" aria-label="Joining window seconds">
+        <span class="muted">seconds</span>
+        <button id="open-join">Open joining</button>
+        <button id="close-join" class="secondary">Close</button>
+      </div>
+      <div class="row">
+        <label class="muted">Classroom address
+          <select id="base-url" aria-label="Classroom address"></select>
+        </label>
+      </div>
+      <div class="qr-box">
+        <img id="qr" alt="QR code for students to join" hidden>
+        <div id="code" class="code"></div>
+        <div id="join-state" class="muted">Joining is closed.</div>
+      </div>
+      <p class="muted">Joined <b id="joined">0</b> · flagged <b id="flagged">0</b></p>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1">
+      <h2>3 · Live quiz</h2>
+      <div class="row">
+        <button id="release-next">Release next question</button>
+        <button id="extend" class="secondary">+30 s to open question</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Question</th><th>State</th><th>Answered</th></tr></thead>
+          <tbody id="questions"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1">
+      <h2>4 · Attendance</h2>
+      <div class="row">
+        <button id="refresh-attendance" class="secondary">Refresh attendance</button>
+        <span id="attendance-summary" class="muted"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Roll number</th><th>Status</th><th>Answered</th><th>Joined</th><th>Flags (for review, not penalties)</th></tr></thead>
+          <tbody id="attendance"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="/js/instructor.js"></script>
+</body>
+</html>

@@ -86,8 +86,15 @@ public class Participant {
         return flagReason;
     }
 
+    /** Adds a reason; earlier reasons are kept so the instructor sees the whole history. */
     public void flag(String reason) {
         this.flagged = true;
-        this.flagReason = reason;
+        if (flagReason == null || flagReason.isBlank()) {
+            flagReason = reason;
+        } else if (!flagReason.contains(reason)) {
+            flagReason = flagReason + FLAG_SEPARATOR + reason;
+        }
     }
+
+    public static final String FLAG_SEPARATOR = "; ";
 }

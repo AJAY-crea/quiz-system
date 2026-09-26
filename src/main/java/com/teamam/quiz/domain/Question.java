@@ -90,7 +90,8 @@ public class Question {
     }
 
     public void setOptions(List<String> options) {
-        this.options = options;
+        // Copy: Hibernate must be able to modify this collection, and callers may pass List.of(...).
+        this.options = new ArrayList<>(options);
     }
 
     public Integer getCorrectOptionIndex() {
