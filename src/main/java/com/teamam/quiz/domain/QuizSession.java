@@ -46,6 +46,10 @@ public class QuizSession {
     /** New joins are allowed until this instant; null means joining has never been opened. */
     private Instant joinOpenUntil;
 
+    // Nullable (null = default) so ddl-auto=update can add them to a database that already has sessions.
+    private Boolean doubtsEnabled;
+    private Boolean doubtAuthorsVisible;
+
     protected QuizSession() {
     }
 
@@ -99,5 +103,23 @@ public class QuizSession {
 
     public void setJoinOpenUntil(Instant joinOpenUntil) {
         this.joinOpenUntil = joinOpenUntil;
+    }
+
+    /** On by default; the instructor can switch the doubts channel off (design doc risk #3). */
+    public boolean isDoubtsEnabled() {
+        return doubtsEnabled == null || doubtsEnabled;
+    }
+
+    public void setDoubtsEnabled(boolean enabled) {
+        this.doubtsEnabled = enabled;
+    }
+
+    /** Off by default: the instructor sees doubts anonymously unless she chooses otherwise. */
+    public boolean isDoubtAuthorsVisible() {
+        return doubtAuthorsVisible != null && doubtAuthorsVisible;
+    }
+
+    public void setDoubtAuthorsVisible(boolean visible) {
+        this.doubtAuthorsVisible = visible;
     }
 }

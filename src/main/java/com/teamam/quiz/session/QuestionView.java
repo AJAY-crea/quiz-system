@@ -11,7 +11,7 @@ public record QuestionView(Long id, int orderIndex, String type, String text, Li
                 question.getOrderIndex(),
                 question.getType().name(),
                 question.getText(),
-                question.getOptions(),
+                List.copyOf(question.getOptions()),
                 question.getDurationSeconds());
     }
 }

@@ -35,6 +35,11 @@
     }
     .error { color: var(--warn); min-height: 1.5em; }
     .hint { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+    .hint-inline { color: var(--muted); font-size: 13px; }
+    .doubt-card { margin-top: 16px; }
+    .doubt-card textarea { min-height: 70px; }
+    #doubt-status { margin: 8px 0 0; }
+    button.secondary { margin-top: 12px; background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
     .bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 16px; }
     .who { color: var(--muted); font-size: 14px; }
     .pill { font-size: 13px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
@@ -88,7 +93,17 @@
           <button type="submit">Submit answer</button>
         </form>
         <p id="answer-status" class="status"></p>
+        <button type="button" id="fullscreen" class="secondary">Full screen</button>
       </div>
+    </div>
+    <div class="card doubt-card">
+      <form id="doubt-form">
+        <label class="field">Ask a doubt <span class="hint-inline">(other students never see who asked)</span>
+          <textarea id="doubt-text" maxlength="500" placeholder="What's confusing you?"></textarea>
+        </label>
+        <button type="submit">Send doubt</button>
+        <p id="doubt-status" class="hint"></p>
+      </form>
     </div>
   </section>
 </main>

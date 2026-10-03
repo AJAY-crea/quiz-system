@@ -290,6 +290,86 @@ function showMessage(text) {
   $('message').textContent = text;
 }
 
+// ---------- integrity signals (advisory) ----------
+// Sent only while a question is open and not yet answered, so an innocent tab switch after
+// answering creates no noise. sendBeacon is used because once the page is hidden, a normal
+// request may be cut off; the browser finishes a beacon even as the page goes away.
+
+const FOCUS_DEBOUNCE_MS = 2000;
+let lastFocusSignalAt = 0;
+let enteredFullscreen = false;
+
+function questionIsOpenAndUnanswered() {
+  return identity && currentQuestion && !$('answer-form').hidden;
+}
+
+function sendSignal(eventType) {
+  if (!questionIsOpenAndUnanswered()) return;
+  const body = JSON.stringify({
+    rollNo: identity.rollNo,
+    deviceToken: identity.deviceToken,
+    questionId: currentQuestion.id,
+    eventType,
+  });
+  const url = `/api/sessions/${encodeURIComponent(identity.sessionId)}/integrity`;
+  const blob = new Blob([body], { type: 'application/json' });
+  if (!(navigator.sendBeacon && navigator.sendBeacon(url, blob))) {
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true })
+      .catch(() => {});
+  }
+}
+
+function focusLost() {
+  // Switching apps fires both "visibility hidden" and "blur": count it once.
+  const now = Date.now();
+  if (now - lastFocusSignalAt < FOCUS_DEBOUNCE_MS) return;
+  lastFocusSignalAt = now;
+  sendSignal('FOCUS_LOSS');
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') focusLost();
+});
+window.addEventListener('blur', focusLost);
+$('typed').addEventListener('paste', () => sendSignal('PASTE'));
+
+$('fullscreen').addEventListener('click', () => {
+  document.documentElement.requestFullscreen?.().then(() => { enteredFullscreen = true; }).catch(() => {});
+});
+document.addEventListener('fullscreenchange', () => {
+  if (enteredFullscreen && !document.fullscreenElement) {
+    enteredFullscreen = false;
+    sendSignal('FULLSCREEN_EXIT');
+  }
+});
+// iPhones don't support fullscreen for web pages; hide the button where it can't work.
+if (!document.documentElement.requestFullscreen) $('fullscreen').hidden = true;
+
+// ---------- doubts ----------
+
+$('doubt-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = $('doubt-text').value.trim();
+  if (!text || !identity) return;
+  $('doubt-status').textContent = 'Sending…';
+  const response = await fetch(`/api/sessions/${encodeURIComponent(identity.sessionId)}/doubts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rollNo: identity.rollNo, deviceToken: identity.deviceToken, text }),
+  }).catch(() => null);
+  if (!response) {
+    $('doubt-status').textContent = 'Not sent: no connection. Your text is still here; try again.';
+    return;
+  }
+  if (response.ok) {
+    $('doubt-text').value = '';
+    $('doubt-status').textContent = 'Sent to the instructor ✓';
+  } else {
+    const body = await response.json().catch(() => ({}));
+    $('doubt-status').textContent = body.error ?? 'Could not send your doubt.';
+  }
+});
+
 // ---------- start ----------
 
 $('join-form').addEventListener('submit', join);

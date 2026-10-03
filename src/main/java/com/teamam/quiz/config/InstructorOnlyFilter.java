@@ -27,7 +27,9 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
     private static final List<Pattern> STUDENT_API = List.of(
             Pattern.compile("POST /api/roster/\\d+/join"),
             Pattern.compile("POST /api/sessions/\\d+/join-ticket"),
-            Pattern.compile("GET /api/sessions/\\d+/state"));
+            Pattern.compile("GET /api/sessions/\\d+/state"),
+            Pattern.compile("POST /api/sessions/\\d+/doubts"),
+            Pattern.compile("POST /api/sessions/\\d+/integrity"));
 
     private static final UrlPathHelper PATHS = new UrlPathHelper();
 

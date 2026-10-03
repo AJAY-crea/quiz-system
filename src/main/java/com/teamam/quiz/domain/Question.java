@@ -39,7 +39,9 @@ public class Question {
     @Column(length = 2000)
     private String text;
 
-    @ElementCollection
+    // EAGER: a question has only a few options, and they're needed whenever the question is shown,
+    // including when a reply is written after the database session has closed.
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "question_options", joinColumns = @JoinColumn(name = "question_id"))
     @OrderColumn(name = "option_index")
     @Column(name = "option_text")
