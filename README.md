@@ -31,6 +31,13 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
 4. **Release next question**, and use **+30 s** if needed. Answers arrive live.
 5. **Refresh attendance**: present = answered at least 50% of released questions (late answers
    count). Flags such as "device was already used by …" are for review, never penalties.
+6. **Download score sheet (.xlsx)**: one row per rostered student in roll-number order, absentees
+   included. A CSV copy is there as a fallback.
+7. **Doubts** appear live, tagged with the question that was open. They're anonymous unless you
+   tick "Show who asked", and you can dismiss them or turn the channel off.
+8. **Integrity signals** list how often a student left the page, exited full screen, or pasted
+   while a question was open. Treat them as prompts to look, not proof: phones also do this on a
+   screen lock or an incoming call.
 
 Students need nothing installed and no internet. Everything is served by the laptop.
 
@@ -45,6 +52,9 @@ Instructor (REST, localhost only):
 | Current join code | `GET /api/sessions/{sessionId}/join-window` |
 | Join QR (SVG) | `GET /api/sessions/{sessionId}/join-qr.svg?base=http://<laptop-ip>:8080` |
 | Attendance | `GET /api/sessions/{sessionId}/attendance` |
+| Score sheet | `GET /api/sessions/{sessionId}/export.xlsx` (fallback: `export.csv`) |
+| Doubts list / dismiss / settings | `GET /api/sessions/{sessionId}/doubts`, `POST .../doubts/{doubtId}/dismiss`, `POST .../doubts-settings?enabled=&authorsVisible=` |
+| Integrity summary | `GET /api/sessions/{sessionId}/integrity` |
 | Create session | `POST /api/sessions` `{"title": "..."}` |
 | Upload roster (CSV, one roll number per line, optional header/name column) | `POST /api/roster/{sessionId}/upload` (multipart `file`) |
 | Add question | `POST /api/sessions/{sessionId}/questions` `{"orderIndex":1,"type":"MCQ","text":"...","options":[...],"correctOptionIndex":2,"durationSeconds":60}` |
@@ -58,6 +68,8 @@ Student:
 | Exchange scanned QR code for a 2-minute join ticket | `POST /api/sessions/{sessionId}/join-ticket?code=...` |
 | Join (roster-verified; ticket not needed to rejoin from the same phone) | `POST /api/roster/{sessionId}/join` `{"rollNo":"...","deviceToken":"...","ticket":"..."}` |
 | Current state (own option order, server-computed time left, already answered?) | `GET /api/sessions/{sessionId}/state?rollNo=...&deviceToken=...` |
+| Send a doubt | `POST /api/sessions/{sessionId}/doubts` `{"rollNo","deviceToken","text"}` |
+| Integrity signal (sent with `navigator.sendBeacon`) | `POST /api/sessions/{sessionId}/integrity` `{"rollNo","deviceToken","questionId","eventType"}` |
 | Submit answer (STOMP) | send to `/app/session/{sessionId}/answer`, ack on `/user/queue/answer-ack` |
 | Question released / deadline extended (STOMP broadcast) | subscribe `/topic/session/{sessionId}/question` |
 
@@ -77,3 +89,11 @@ STOMP endpoint: `/ws` (SockJS) or `/ws/websocket` (plain WebSocket, used by `stu
   - a rotating QR code exchanged for a 2-minute join ticket;
   - a flag when one phone is used for different roll numbers, in this or an earlier session;
   - instructor actions restricted to the laptop itself.
+- **Week 4 (Mukesh):** integrity signals (page left, full screen exited, paste), advisory only and
+  capped per student per question; basic doubts channel (anonymous by default, tagged to the open
+  question, dismiss, on/off).
+- **Week 4 (Ajay):** basic score-sheet export (.xlsx plus CSV fallback, protected against
+  formula injection); the roster now keeps student names.
+- **Not built yet (after the mid-demo):** typed-answer review, doubt upvoting and queue,
+  per-question analytics, analytics columns in the export, the load-test harness, and an integrity
+  false-positive calibration run.

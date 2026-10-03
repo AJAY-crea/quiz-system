@@ -26,9 +26,9 @@ public class RosterController {
     @PostMapping("/{sessionId}/upload")
     public ResponseEntity<Map<String, Object>> upload(
             @PathVariable Long sessionId, @RequestParam("file") MultipartFile file) throws IOException {
-        List<String> rollNumbers = RosterFileParser.parseRollNumbers(file);
-        rosterService.uploadRoster(sessionId, rollNumbers);
-        return ResponseEntity.ok(Map.of("sessionId", sessionId, "rosterSize", rollNumbers.size()));
+        List<RosterEntry> entries = RosterFileParser.parse(file);
+        rosterService.uploadRosterEntries(sessionId, entries);
+        return ResponseEntity.ok(Map.of("sessionId", sessionId, "rosterSize", entries.size()));
     }
 
     @PostMapping("/{sessionId}/join")

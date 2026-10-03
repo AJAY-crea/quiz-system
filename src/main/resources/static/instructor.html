@@ -42,6 +42,15 @@
     th { color: var(--muted); font-weight: 600; }
     .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--chip); }
     .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+    .button-link { display: inline-block; background: var(--accent); color: #fff; border-radius: 8px; padding: 8px 14px;
+      font-weight: 600; text-decoration: none; }
+    .button-link.secondary { background: var(--chip); color: var(--text); }
+    .doubt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
+    .doubt-list li { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; gap: 8px;
+      align-items: flex-start; justify-content: space-between; }
+    .doubt-list li.dismissed { opacity: .5; }
+    .doubt-list .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .doubt-list button { padding: 4px 10px; font-size: 13px; flex-shrink: 0; }
     #status { min-height: 1.5em; font-size: 14px; }
     #status.error { color: var(--bad); }
   </style>
@@ -114,10 +123,35 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>Doubts <span id="doubt-count" class="pill"></span></h2>
+      <div class="row">
+        <label class="muted"><input type="checkbox" id="doubts-enabled"> Channel on</label>
+        <label class="muted"><input type="checkbox" id="doubts-authors"> Show who asked</label>
+      </div>
+      <ul id="doubts" class="doubt-list"></ul>
+      <p id="doubts-empty" class="muted">No doubts yet.</p>
+    </div>
+
+    <div class="card">
+      <h2>Integrity signals <span class="muted">(advisory, not penalties)</span></h2>
+      <p class="muted">Counts of leaving the page, exiting full screen, or pasting while a question was open.
+        Phones also do this for innocent reasons: a screen lock or an incoming call.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Roll number</th><th>Q</th><th>Signal</th><th>Times</th></tr></thead>
+          <tbody id="integrity"></tbody>
+        </table>
+      </div>
+      <p id="integrity-empty" class="muted">No signals.</p>
+    </div>
+
     <div class="card" style="grid-column: 1 / -1">
-      <h2>4 · Attendance</h2>
+      <h2>4 · Attendance and score sheet</h2>
       <div class="row">
         <button id="refresh-attendance" class="secondary">Refresh attendance</button>
+        <a id="download-xlsx" class="button-link">Download score sheet (.xlsx)</a>
+        <a id="download-csv" class="button-link secondary">CSV</a>
         <span id="attendance-summary" class="muted"></span>
       </div>
       <div class="table-wrap">

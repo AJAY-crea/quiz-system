@@ -89,6 +89,62 @@ async function refresh() {
   $('flagged').textContent = dashboard.flagged;
   renderJoin(dashboard.join);
   renderQuestions(dashboard.questions);
+  $('download-xlsx').href = `/api/sessions/${sessionId}/export.xlsx`;
+  $('download-csv').href = `/api/sessions/${sessionId}/export.csv`;
+  try {
+    await renderDoubts();
+    if (Date.now() - lastIntegrityRefresh > 5000) await renderIntegrity();
+  } catch (e) {
+    say(e.message, true);
+  }
+}
+
+let lastIntegrityRefresh = 0;
+
+async function renderDoubts() {
+  const panel = await api('GET', `/api/sessions/${sessionId}/doubts`);
+  $('doubts-enabled').checked = panel.enabled;
+  $('doubts-authors').checked = panel.authorsVisible;
+  const open = panel.doubts.filter((d) => !d.dismissed).length;
+  $('doubt-count').textContent = open ? `${open} open` : '';
+  $('doubts-empty').hidden = panel.doubts.length > 0;
+  const list = $('doubts');
+  list.replaceChildren();
+  for (const d of panel.doubts) {
+    const li = document.createElement('li');
+    if (d.dismissed) li.className = 'dismissed';
+    const body = document.createElement('div');
+    const meta = document.createElement('div');
+    meta.className = 'muted';
+    meta.textContent = [d.questionOrder ? `Q${d.questionOrder}` : 'general', d.authorRollNo].filter(Boolean).join(' · ');
+    const text = document.createElement('div');
+    text.className = 'text';
+    text.textContent = d.text;
+    body.append(meta, text);
+    li.append(body);
+    if (!d.dismissed) {
+      const dismiss = document.createElement('button');
+      dismiss.className = 'secondary';
+      dismiss.textContent = 'Dismiss';
+      dismiss.addEventListener('click', () => run(() => api('POST', `/api/sessions/${sessionId}/doubts/${d.id}/dismiss`)));
+      li.append(dismiss);
+    }
+    list.append(li);
+  }
+}
+
+async function renderIntegrity() {
+  lastIntegrityRefresh = Date.now();
+  const rows = await api('GET', `/api/sessions/${sessionId}/integrity`);
+  const labels = { FOCUS_LOSS: 'left the page', FULLSCREEN_EXIT: 'exited full screen', PASTE: 'pasted text' };
+  const body = $('integrity');
+  body.replaceChildren();
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    tr.append(cell(r.rollNo), cell(`Q${r.questionOrder}`), cell(labels[r.eventType] ?? r.eventType), cell(r.count));
+    body.append(tr);
+  }
+  $('integrity-empty').hidden = rows.length > 0;
 }
 
 function renderJoin(join) {
@@ -220,6 +276,15 @@ $('extend').addEventListener('click', () => run(async () => {
 }));
 
 $('refresh-attendance').addEventListener('click', () => renderAttendance().catch((e) => say(e.message, true)));
+
+$('doubts-enabled').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/doubts-settings?enabled=${e.target.checked}`);
+  say(e.target.checked ? 'Doubts channel on.' : 'Doubts channel off: students can no longer send doubts.');
+}));
+
+$('doubts-authors').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/doubts-settings?authorsVisible=${e.target.checked}`);
+}));
 
 $('base-url').addEventListener('change', () => { shownQrKey = null; refresh(); });
 

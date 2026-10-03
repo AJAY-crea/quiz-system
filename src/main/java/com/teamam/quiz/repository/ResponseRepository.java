@@ -15,6 +15,8 @@ public interface ResponseRepository extends JpaRepository<Response, Long> {
 
     long countBySessionIdAndQuestionId(Long sessionId, Long questionId);
 
+    List<Response> findBySessionId(Long sessionId);
+
     Optional<Response> findBySessionIdAndQuestionIdAndRollNo(Long sessionId, Long questionId, String rollNo);
 
     long countBySessionIdAndQuestionIdAndRollNo(Long sessionId, Long questionId, String rollNo);

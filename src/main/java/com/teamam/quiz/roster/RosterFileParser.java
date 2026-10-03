@@ -11,8 +11,8 @@ import java.util.Set;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Parses a roster file of one roll number per line, optionally "ROLLNO,Name" and an
- * optional header row (rollno / roll_no / roll number).
+ * Parses a roster file: one student per line, "ROLLNO" or "ROLLNO,Name" (everything after the
+ * first comma is the name, so "CS23B065,Reddy, Ajay" keeps its comma), with an optional header row.
  */
 public final class RosterFileParser {
 
@@ -21,27 +21,36 @@ public final class RosterFileParser {
     private RosterFileParser() {
     }
 
-    public static List<String> parseRollNumbers(MultipartFile file) throws IOException {
-        List<String> rollNumbers = new ArrayList<>();
+    public static List<RosterEntry> parse(MultipartFile file) throws IOException {
+        List<RosterEntry> entries = new ArrayList<>();
         try (BufferedReader reader =
                 new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             boolean firstLine = true;
             while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
+                String trimmed = line.replace("﻿", "").trim();
                 if (trimmed.isEmpty()) {
                     continue;
                 }
-                String rollNo = trimmed.split(",")[0].trim();
+                int comma = trimmed.indexOf(',');
+                String rollNo = (comma < 0 ? trimmed : trimmed.substring(0, comma)).trim();
+                String name = comma < 0 ? null : unquote(trimmed.substring(comma + 1).trim());
                 if (firstLine) {
                     firstLine = false;
                     if (HEADER_TOKENS.contains(rollNo.toLowerCase(Locale.ROOT))) {
                         continue;
                     }
                 }
-                rollNumbers.add(rollNo.toUpperCase(Locale.ROOT));
+                entries.add(new RosterEntry(rollNo.toUpperCase(Locale.ROOT), name == null || name.isEmpty() ? null : name));
             }
         }
-        return rollNumbers;
+        return entries;
+    }
+
+    private static String unquote(String value) {
+        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+            return value.substring(1, value.length() - 1).replace("\"\"", "\"");
+        }
+        return value;
     }
 }

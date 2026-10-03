@@ -35,13 +35,21 @@ public class RosterService {
 
     @Transactional
     public void uploadRoster(Long sessionId, List<String> rollNumbers) {
+        uploadRosterEntries(sessionId, rollNumbers.stream().map(r -> new RosterEntry(r, null)).toList());
+    }
+
+    /** Adds students to the session's roster; a name in the file updates the stored name. */
+    @Transactional
+    public void uploadRosterEntries(Long sessionId, List<RosterEntry> entries) {
         QuizSession session = requireSession(sessionId);
-        for (String rollNo : rollNumbers) {
-            if (studentRepository.findById(rollNo).isEmpty()) {
-                studentRepository.save(new Student(rollNo));
+        for (RosterEntry entry : entries) {
+            Student student = studentRepository.findById(entry.rollNo()).orElseGet(() -> new Student(entry.rollNo()));
+            if (entry.name() != null) {
+                student.setName(entry.name());
             }
+            studentRepository.save(student);
+            session.getRosterRollNumbers().add(entry.rollNo());
         }
-        session.getRosterRollNumbers().addAll(rollNumbers);
         sessionRepository.save(session);
     }
 
