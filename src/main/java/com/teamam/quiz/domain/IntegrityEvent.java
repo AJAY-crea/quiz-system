@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
+/** Table: one advisory signal (left page / exited fullscreen / pasted) for a student on a question. */
 @Entity
 @Table(name = "integrity_events")
 public class IntegrityEvent {

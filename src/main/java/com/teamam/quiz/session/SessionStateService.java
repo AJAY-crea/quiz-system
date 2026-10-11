@@ -44,6 +44,7 @@ public class SessionStateService {
         this.randomisationService = randomisationService;
     }
 
+    /** This phone's view: open question with ITS option order, server-computed time left, already answered? */
     @Transactional(readOnly = true)
     public SessionStateView currentState(Long sessionId, String rollNo, String deviceToken) {
         QuizSession session = sessionRepository

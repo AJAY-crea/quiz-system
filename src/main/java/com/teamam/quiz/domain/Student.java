@@ -4,6 +4,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/** Table: a student (roll number + name), shared across all sessions. */
 @Entity
 @Table(name = "students")
 public class Student {

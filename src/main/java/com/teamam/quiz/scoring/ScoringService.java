@@ -20,6 +20,7 @@ public class ScoringService {
         this.randomisationService = randomisationService;
     }
 
+    /** Correct if the student's tap, un-shuffled back to the real option, equals the answer key. */
     public boolean scoreMcq(String rollNo, Question question, int chosenShuffledIndex) {
         if (question.getType() != QuestionType.MCQ) {
             throw new IllegalArgumentException("scoreMcq called on a non-MCQ question: " + question.getId());

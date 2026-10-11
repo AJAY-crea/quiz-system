@@ -3,6 +3,7 @@ package com.teamam.quiz.questionbank;
 import com.teamam.quiz.domain.QuestionType;
 import java.util.List;
 
+/** What the dashboard sends to add a question. */
 public record AddQuestionRequest(
         int orderIndex,
         QuestionType type,

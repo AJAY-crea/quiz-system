@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** Database access for answers: find one, count them, or count per student for attendance. */
 public interface ResponseRepository extends JpaRepository<Response, Long> {
 
     /** Rows of [rollNo, number of answers stored] for one session; late answers included. */

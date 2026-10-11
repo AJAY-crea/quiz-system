@@ -8,6 +8,7 @@ let shownQrKey = null;
 
 // ---------- helpers ----------
 
+// Call a server endpoint; throw a readable error if it fails.
 async function api(method, url, body) {
   const options = { method };
   if (body instanceof FormData) {
@@ -23,11 +24,13 @@ async function api(method, url, body) {
   return data;
 }
 
+// Show a status or error line at the top of the dashboard.
 function say(message, isError = false) {
   $('status').textContent = message;
   $('status').className = isError ? 'error' : '';
 }
 
+// Do a button's action, then refresh the dashboard; show any error.
 async function run(action) {
   try {
     await action();
@@ -37,12 +40,14 @@ async function run(action) {
   }
 }
 
+// A table cell with plain text (textContent, so student text can never inject HTML).
 function cell(text) {
   const td = document.createElement('td');
   td.textContent = text;
   return td;
 }
 
+// A small coloured label, e.g. PRESENT / ABSENT.
 function pill(text, kind) {
   const span = document.createElement('span');
   span.className = `pill ${kind}`;
@@ -52,6 +57,7 @@ function pill(text, kind) {
 
 // ---------- sessions ----------
 
+// Fill the session picker and reopen the last session used.
 async function loadSessions() {
   const sessions = await api('GET', '/api/dashboard/sessions');
   const select = $('session-select');
@@ -64,6 +70,7 @@ async function loadSessions() {
   }
 }
 
+// Switch the dashboard to a session.
 function selectSession(id) {
   sessionId = id || null;
   shownQrKey = null;
@@ -76,6 +83,7 @@ function selectSession(id) {
 
 // ---------- rendering ----------
 
+// Every second: reload counts, the QR, the question table and doubts (signals every 5 s).
 async function refresh() {
   if (!sessionId) return;
   try {
@@ -101,6 +109,7 @@ async function refresh() {
 
 let lastIntegrityRefresh = 0;
 
+// The doubts list (open first) with Dismiss buttons and the two switches.
 async function renderDoubts() {
   const panel = await api('GET', `/api/sessions/${sessionId}/doubts`);
   $('doubts-enabled').checked = panel.enabled;
@@ -133,6 +142,7 @@ async function renderDoubts() {
   }
 }
 
+// The advisory signals table, with friendly labels.
 async function renderIntegrity() {
   lastIntegrityRefresh = Date.now();
   const rows = await api('GET', `/api/sessions/${sessionId}/integrity`);
@@ -147,6 +157,7 @@ async function renderIntegrity() {
   $('integrity-empty').hidden = rows.length > 0;
 }
 
+// Show the QR + code while joining is open (redraw only when the code changes).
 function renderJoin(join) {
   const img = $('qr');
   if (!join.open) {
@@ -168,6 +179,7 @@ function renderJoin(join) {
     `Open for ${join.secondsLeft}s more · code changes in ${Math.ceil(join.codeRotatesInMs / 1000)}s`;
 }
 
+// The live-quiz table: open (time left) / done / not released, and answers received.
 function renderQuestions(questions) {
   const body = $('questions');
   body.replaceChildren();
@@ -188,6 +200,7 @@ function renderQuestions(questions) {
   $('extend').disabled = !current;
 }
 
+// The attendance table and the rule that decided it.
 async function renderAttendance() {
   const report = await api('GET', `/api/sessions/${sessionId}/attendance`);
   const body = $('attendance');
@@ -290,6 +303,7 @@ $('base-url').addEventListener('change', () => { shownQrKey = null; refresh(); }
 
 // ---------- start ----------
 
+// List this laptop's network addresses so she can pick the classroom Wi-Fi one for the QR.
 async function loadAddresses() {
   const addresses = await api('GET', '/api/dashboard/host-addresses');
   const select = $('base-url');

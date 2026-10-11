@@ -2,6 +2,7 @@
 // connection, a page reload or a locked phone, and is resent with the SAME submissionId each time
 // (that is how the server recognises a resend as a DUPLICATE instead of a second answer).
 
+// A random ID that works on plain http (crypto.randomUUID needs https).
 export function randomId() {
   // crypto.randomUUID() only works on HTTPS or localhost; the classroom uses plain http:// on the LAN.
   // getRandomValues() works everywhere.

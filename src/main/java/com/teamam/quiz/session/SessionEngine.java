@@ -12,6 +12,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Module 2 (Mukesh): creates sessions and releases questions one at a time, in order. */
 @Service
 public class SessionEngine {
 
@@ -28,6 +29,7 @@ public class SessionEngine {
         this.messagingTemplate = messagingTemplate;
     }
 
+    /** Creates a new session (one lecture's quiz). */
     @Transactional
     public QuizSession createSession(String title) {
         return sessionRepository.save(new QuizSession(title));
@@ -75,6 +77,7 @@ public class SessionEngine {
         messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/question", event);
     }
 
+    /** Loads the session or fails with "not found". */
     private QuizSession requireSession(Long sessionId) {
         return sessionRepository
                 .findById(sessionId)

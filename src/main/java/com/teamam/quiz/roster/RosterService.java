@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Module 1 (Ajay): the class list and the rules for who may join, from which phone. */
 @Service
 public class RosterService {
 
@@ -33,6 +34,7 @@ public class RosterService {
         this.joinWindowService = joinWindowService;
     }
 
+    /** Adds roll numbers (without names) to a session's roster. */
     @Transactional
     public void uploadRoster(Long sessionId, List<String> rollNumbers) {
         uploadRosterEntries(sessionId, rollNumbers.stream().map(r -> new RosterEntry(r, null)).toList());
@@ -108,6 +110,7 @@ public class RosterService {
                 : JoinResult.acceptedFlagged(rollNo, deviceToken, String.join(Participant.FLAG_SEPARATOR, reasons));
     }
 
+    /** Loads the session or fails with "not found". */
     private QuizSession requireSession(Long sessionId) {
         return sessionRepository
                 .findById(sessionId)

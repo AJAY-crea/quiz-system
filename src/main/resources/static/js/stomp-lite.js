@@ -1,12 +1,14 @@
 // Minimal STOMP 1.2 client over a plain WebSocket. Bundled here instead of loading a library from
 // a CDN because the classroom network may have no internet access.
 
+// Tiny STOMP client over a plain WebSocket: connect, subscribe to channels, send JSON.
 export function connectStomp(url, { onConnect, onClose }) {
   const socket = new WebSocket(url);
   const handlers = new Map();
   let nextSubscriptionId = 0;
   let received = '';
 
+  // Write one STOMP frame: command line, headers, blank line, body, NUL terminator.
   function sendFrame(command, headers, body = '') {
     let frame = command + '\n';
     for (const [name, value] of Object.entries(headers)) {
@@ -29,6 +31,7 @@ export function connectStomp(url, { onConnect, onClose }) {
     },
   };
 
+  // Read one STOMP frame from the server and pass messages to the right subscriber.
   function handleFrame(raw) {
     const headerEnd = raw.indexOf('\n\n');
     const headerLines = raw.slice(0, headerEnd === -1 ? raw.length : headerEnd).split('\n');

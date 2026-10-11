@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/** Database access for joins (who joined which session from which phone). */
 public interface ParticipantRepository extends JpaRepository<Participant, Long> {
 
     Optional<Participant> findBySessionIdAndRollNo(Long sessionId, String rollNo);

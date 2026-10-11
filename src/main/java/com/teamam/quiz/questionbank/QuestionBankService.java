@@ -10,6 +10,7 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Module 5 (Ajay): stores the questions for a session. */
 @Service
 public class QuestionBankService {
 
@@ -21,6 +22,7 @@ public class QuestionBankService {
         this.questionRepository = questionRepository;
     }
 
+    /** Adds a question; an MCQ must have at least 2 options and a correct option that exists. */
     @Transactional
     public Question add(
             Long sessionId,

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Web endpoint for adding questions (instructor). */
 @RestController
 @RequestMapping("/api/sessions/{sessionId}/questions")
 public class QuestionController {
@@ -19,6 +20,7 @@ public class QuestionController {
         this.questionBankService = questionBankService;
     }
 
+    /** Instructor adds a question to a session. */
     @PostMapping
     public ResponseEntity<QuestionView> add(
             @PathVariable Long sessionId, @RequestBody AddQuestionRequest request) {

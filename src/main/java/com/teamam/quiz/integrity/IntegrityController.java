@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Web endpoints: phones send signals; the instructor reads the summary. */
 @RestController
 public class IntegrityController {
 

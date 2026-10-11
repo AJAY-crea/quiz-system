@@ -4,6 +4,7 @@ import com.teamam.quiz.roster.JoinWindowStatus;
 import com.teamam.quiz.session.SessionView;
 import java.util.List;
 
+/** Everything the instructor's screen needs in one reply. */
 public record DashboardView(
         SessionView session,
         int rosterSize,

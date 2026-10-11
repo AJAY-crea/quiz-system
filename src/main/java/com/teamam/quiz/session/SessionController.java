@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Web endpoints for sessions: create, release, extend (instructor) and state (phones). */
 @RestController
 @RequestMapping("/api/sessions")
 public class SessionController {
@@ -29,12 +30,14 @@ public class SessionController {
         this.timingService = timingService;
     }
 
+    /** Instructor creates a session. */
     @PostMapping
     public ResponseEntity<SessionView> create(@RequestBody CreateSessionRequest request) {
         QuizSession session = sessionEngine.createSession(request.title());
         return ResponseEntity.ok(SessionView.of(session));
     }
 
+    /** Instructor releases the next question; every phone is told instantly. */
     @PostMapping("/{sessionId}/questions/{questionId}/release")
     public ResponseEntity<QuestionView> release(
             @PathVariable Long sessionId, @PathVariable Long questionId) {
@@ -42,6 +45,7 @@ public class SessionController {
         return ResponseEntity.ok(QuestionView.of(question));
     }
 
+    /** Instructor gives the open question extra seconds; phones refresh their timer. */
     @PostMapping("/{sessionId}/questions/{questionId}/extend")
     public ResponseEntity<Map<String, Object>> extend(
             @PathVariable Long sessionId, @PathVariable Long questionId, @RequestParam int seconds) {
@@ -50,6 +54,7 @@ public class SessionController {
         return ResponseEntity.ok(Map.of("questionId", questionId, "deadline", deadline.toString()));
     }
 
+    /** Phone asks "what should I show now?" after joining, reconnecting or a broadcast. */
     @GetMapping("/{sessionId}/state")
     public ResponseEntity<SessionStateView> state(
             @PathVariable Long sessionId, @RequestParam String rollNo, @RequestParam String deviceToken) {

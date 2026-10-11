@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ClockConfig {
 
+    /** The server clock. Tests swap in a fake clock to test time windows without waiting. */
     @Bean
     public Clock clock() {
         return Clock.systemUTC();

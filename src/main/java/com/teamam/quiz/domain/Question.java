@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Table: one question in a session: text, options, answer key, time limit, when it was released. */
 @Entity
 @Table(name = "questions")
 public class Question {

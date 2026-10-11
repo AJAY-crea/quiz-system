@@ -42,6 +42,7 @@ public class DoubtsService {
         this.doubtRepository = doubtRepository;
     }
 
+    /** A student sends a doubt: checks the channel is on, the phone, the length and the per-student limit. */
     @Transactional
     public void submit(Long sessionId, String rollNo, String deviceToken, String text) {
         QuizSession session = requireSession(sessionId);
@@ -89,6 +90,7 @@ public class DoubtsService {
                 .toList();
     }
 
+    /** Instructor marks a doubt as dealt with. */
     @Transactional
     public void dismiss(Long sessionId, Long doubtId) {
         Doubt doubt = doubtRepository
@@ -99,6 +101,7 @@ public class DoubtsService {
         doubtRepository.save(doubt);
     }
 
+    /** Instructor turns the doubts channel on or off. */
     @Transactional
     public void setEnabled(Long sessionId, boolean enabled) {
         QuizSession session = requireSession(sessionId);
@@ -106,6 +109,7 @@ public class DoubtsService {
         sessionRepository.save(session);
     }
 
+    /** Instructor chooses whether to see who asked each doubt. */
     @Transactional
     public void setAuthorsVisible(Long sessionId, boolean visible) {
         QuizSession session = requireSession(sessionId);
@@ -113,16 +117,19 @@ public class DoubtsService {
         sessionRepository.save(session);
     }
 
+    /** Is the doubts channel on? */
     @Transactional(readOnly = true)
     public boolean isEnabled(Long sessionId) {
         return requireSession(sessionId).isDoubtsEnabled();
     }
 
+    /** Does the instructor currently see authors? */
     @Transactional(readOnly = true)
     public boolean areAuthorsVisible(Long sessionId) {
         return requireSession(sessionId).isDoubtAuthorsVisible();
     }
 
+    /** Loads the session or fails with "not found". */
     private QuizSession requireSession(Long sessionId) {
         return sessionRepository
                 .findById(sessionId)

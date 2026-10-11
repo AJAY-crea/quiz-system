@@ -14,6 +14,7 @@ final class QrSvg {
     private QrSvg() {
     }
 
+    /** Turns a link into a grid of black/white QR squares (ZXing). */
     static BitMatrix matrix(String text) {
         try {
             // Size 0 = one matrix cell per QR module; the SVG scales it up crisply.

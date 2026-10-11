@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class RandomisationService {
 
+    /** This student's option order for this question (always the same for them). */
     public List<String> shuffleFor(String rollNo, Question question) {
         List<Integer> permutation = permutationFor(rollNo, question);
         List<String> options = question.getOptions();
@@ -31,6 +32,7 @@ public class RandomisationService {
         return permutationFor(rollNo, question).get(chosenShuffledIndex);
     }
 
+    /** The shuffle itself: positions 0..n-1 mixed by a generator seeded with (roll, question). */
     private List<Integer> permutationFor(String rollNo, Question question) {
         int optionCount = question.getOptions().size();
         List<Integer> indices = new ArrayList<>(optionCount);
@@ -41,6 +43,7 @@ public class RandomisationService {
         return indices;
     }
 
+    /** Seed from (roll number, question id): same inputs give the same shuffle every time. */
     private long seedFor(String rollNo, Long questionId) {
         return Objects.hash(rollNo, questionId);
     }

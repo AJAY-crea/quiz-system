@@ -30,16 +30,19 @@ public final class JoinCodes {
     private JoinCodes() {
     }
 
+    /** A fresh random secret for a session; the codes and tickets are computed from it. */
     public static byte[] newSecret() {
         byte[] secret = new byte[32];
         RANDOM.nextBytes(secret);
         return secret;
     }
 
+    /** The 8-character QR code for this session at this moment (changes every 15 s). */
     public static String codeFor(byte[] secret, long sessionId, Instant at) {
         return codeForSlot(secret, sessionId, slotOf(at));
     }
 
+    /** Is this scanned code from the current or previous 15-second slot? */
     public static boolean isCodeValid(byte[] secret, long sessionId, String code, Instant now) {
         if (code == null) {
             return false;
@@ -54,11 +57,13 @@ public final class JoinCodes {
         return Instant.ofEpochSecond((slotOf(now) + 1) * CODE_PERIOD.toSeconds());
     }
 
+    /** Makes a 2-minute join ticket: its expiry time + a signature only the server can make. */
     public static String ticketFor(byte[] secret, long sessionId, Instant now) {
         long expiresAt = now.plus(TICKET_TTL).getEpochSecond();
         return expiresAt + "." + ticketMac(secret, sessionId, expiresAt);
     }
 
+    /** Is this ticket genuine (signature matches) and not expired? */
     public static boolean isTicketValid(byte[] secret, long sessionId, String ticket, Instant now) {
         if (ticket == null) {
             return false;
@@ -77,18 +82,22 @@ public final class JoinCodes {
                 && constantTimeEquals(ticket.substring(dot + 1), ticketMac(secret, sessionId, expiresAt));
     }
 
+    /** Which 15-second slot a moment falls in (time divided into 15 s blocks). */
     private static long slotOf(Instant at) {
         return at.getEpochSecond() / CODE_PERIOD.toSeconds();
     }
 
+    /** The code for one slot: a signature of (session, slot), shortened. */
     private static String codeForSlot(byte[] secret, long sessionId, long slot) {
         return hmacHex(secret, "code:" + sessionId + ":" + slot).substring(0, CODE_HEX_CHARS).toUpperCase();
     }
 
+    /** The signature part of a ticket, so nobody can edit the expiry. */
     private static String ticketMac(byte[] secret, long sessionId, long expiresAt) {
         return hmacHex(secret, "ticket:" + sessionId + ":" + expiresAt).substring(0, TICKET_MAC_HEX_CHARS);
     }
 
+    /** HMAC-SHA256: a keyed fingerprint; without the secret you can't produce a valid one. */
     private static String hmacHex(byte[] secret, String message) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

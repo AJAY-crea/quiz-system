@@ -25,10 +25,12 @@ public class TimingService {
         this.questionRepository = questionRepository;
     }
 
+    /** When this question closes: released time + duration + any extension. */
     public Instant deadlineFor(Long questionId) {
         return deadlineOf(requireQuestion(questionId));
     }
 
+    /** Did an answer arrive by the deadline + 300 ms grace? Uses the server clock only. */
     public boolean isOnTime(Long questionId, Instant arrivedAt) {
         Instant deadlineWithGrace = deadlineFor(questionId).plus(GRACE_WINDOW);
         return !arrivedAt.isAfter(deadlineWithGrace);
@@ -50,6 +52,7 @@ public class TimingService {
         return deadlineOf(question);
     }
 
+    /** Deadline for an already-loaded question; fails if it was never released. */
     private Instant deadlineOf(Question question) {
         Instant releasedAt = question.getReleasedAt();
         if (releasedAt == null) {
@@ -58,6 +61,7 @@ public class TimingService {
         return releasedAt.plusSeconds((long) question.getDurationSeconds() + question.getExtensionSeconds());
     }
 
+    /** Loads the question or fails with "not found". */
     private Question requireQuestion(Long questionId) {
         return questionRepository
                 .findById(questionId)

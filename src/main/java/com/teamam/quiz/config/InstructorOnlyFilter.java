@@ -33,6 +33,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
 
     private static final UrlPathHelper PATHS = new UrlPathHelper();
 
+    /** Runs before every request: blocks instructor-only actions unless they come from this laptop. */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -45,6 +46,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
+    /** Is this an instructor-only address? All /api calls are, except the 5 that phones need. */
     static boolean requiresInstructor(HttpServletRequest request) {
         String path = StringUtils.cleanPath(PATHS.getPathWithinApplication(request));
         if (path.startsWith("/api/")) {
@@ -56,6 +58,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
                 || path.startsWith("/h2-console");
     }
 
+    /** Did the request come from this laptop itself (localhost)? */
     private static boolean isLoopback(String remoteAddress) {
         try {
             return InetAddress.getByName(remoteAddress).isLoopbackAddress();

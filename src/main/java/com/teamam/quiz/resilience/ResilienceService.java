@@ -68,6 +68,7 @@ public class ResilienceService {
         this.insertTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    /** Takes one answer: checks it, judges timing, un-shuffles + scores it, saves it ONCE, says ACCEPTED/DUPLICATE/REJECTED. */
     public AcceptResult accept(Long sessionId, AnswerSubmission submission) {
         // Step 0: stamp arrival before any work, so server processing time never counts against the student.
         Instant arrivedAt = Instant.now();
@@ -101,6 +102,7 @@ public class ResilienceService {
         return AcceptResult.accepted(submission.submissionId(), response.isOnTime());
     }
 
+    /** All the checks (right phone, released question, valid option) and builds the answer row to save. */
     private Response buildResponse(Long sessionId, AnswerSubmission s, Instant arrivedAt) {
         QuizSession session = sessionRepository
                 .findById(sessionId)
@@ -148,6 +150,7 @@ public class ResilienceService {
         return response;
     }
 
+    /** Quick check that required fields are present; returns what's wrong, or null if fine. */
     private static String shapeProblem(AnswerSubmission s) {
         if (s == null) {
             return "empty submission";
@@ -168,10 +171,12 @@ public class ResilienceService {
         return null;
     }
 
+    /** The answer already stored for this student and question, if any. */
     private Optional<Response> findStored(Long sessionId, AnswerSubmission s) {
         return responseRepository.findBySessionIdAndQuestionIdAndRollNo(sessionId, s.questionId(), s.rollNo());
     }
 
+    /** Builds the DUPLICATE reply, saying whether it was the same answer resent. */
     private static AcceptResult duplicateOf(Response stored, AnswerSubmission s) {
         boolean sameSubmission = Objects.equals(stored.getSubmissionId(), s.submissionId());
         return AcceptResult.duplicate(s.submissionId(), stored.isOnTime(), sameSubmission);

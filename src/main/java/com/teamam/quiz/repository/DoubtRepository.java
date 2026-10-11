@@ -4,6 +4,7 @@ import com.teamam.quiz.domain.Doubt;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/** Database access for doubts. */
 public interface DoubtRepository extends JpaRepository<Doubt, Long> {
 
     List<Doubt> findBySessionIdOrderByCreatedAtAscIdAsc(Long sessionId);

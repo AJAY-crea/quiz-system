@@ -29,6 +29,7 @@ public class JoinWindowService {
         this.clock = clock;
     }
 
+    /** Instructor opens joining for N seconds (creates the session secret the first time). */
     @Transactional
     public JoinWindowStatus open(Long sessionId, int seconds) {
         if (seconds < MIN_WINDOW_SECONDS || seconds > MAX_WINDOW_SECONDS) {
@@ -44,6 +45,7 @@ public class JoinWindowService {
         return statusOf(session);
     }
 
+    /** Instructor closes joining now; existing students can still reconnect. */
     @Transactional
     public JoinWindowStatus close(Long sessionId) {
         QuizSession session = requireSession(sessionId);
@@ -54,6 +56,7 @@ public class JoinWindowService {
         return statusOf(session);
     }
 
+    /** Is joining open, how long is left, and the current QR code (shown on the dashboard). */
     @Transactional(readOnly = true)
     public JoinWindowStatus status(Long sessionId) {
         return statusOf(requireSession(sessionId));
@@ -74,6 +77,7 @@ public class JoinWindowService {
                 JoinCodes.ticketFor(secretOf(session), sessionId, now), JoinCodes.TICKET_TTL.toMillis());
     }
 
+    /** Used at join time: is this ticket genuine and unexpired for this session? */
     @Transactional(readOnly = true)
     public boolean isValidTicket(Long sessionId, String ticket) {
         QuizSession session = requireSession(sessionId);
@@ -81,6 +85,7 @@ public class JoinWindowService {
                 && JoinCodes.isTicketValid(secretOf(session), sessionId, ticket, clock.instant());
     }
 
+    /** Builds the status for the dashboard (no code is shown while closed). */
     private JoinWindowStatus statusOf(QuizSession session) {
         Instant now = clock.instant();
         if (!isOpen(session, now)) {
@@ -94,14 +99,17 @@ public class JoinWindowService {
                 Duration.between(now, JoinCodes.nextRotation(now)).toMillis());
     }
 
+    /** Joining is open if the end time is set and still in the future. */
     private static boolean isOpen(QuizSession session, Instant now) {
         return session.getJoinOpenUntil() != null && now.isBefore(session.getJoinOpenUntil());
     }
 
+    /** Reads the session's stored secret. */
     private static byte[] secretOf(QuizSession session) {
         return Base64.getDecoder().decode(session.getJoinSecret());
     }
 
+    /** Loads the session or fails with "not found". */
     private QuizSession requireSession(Long sessionId) {
         return sessionRepository
                 .findById(sessionId)

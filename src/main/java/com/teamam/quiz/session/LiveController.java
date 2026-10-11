@@ -9,6 +9,7 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
+/** Live (STOMP) messages from phones: answers arrive here and get an ack back. */
 @Controller
 public class LiveController {
 
@@ -28,6 +29,7 @@ public class LiveController {
         return resilienceService.accept(sessionId, submission);
     }
 
+    /** Connectivity check: echoes back whatever the phone sends. */
     @MessageMapping("/session/{sessionId}/ping")
     @SendTo("/topic/session/{sessionId}/pong")
     public String ping(@DestinationVariable Long sessionId, String payload) {

@@ -16,6 +16,7 @@ let countdownTimer = null;
 
 // ---------- identity ----------
 
+// This phone's random ID, created once and kept in browser storage (used to spot one phone joining as two students).
 function deviceToken() {
   let token = safeGet('quiz:device');
   if (!token) {
@@ -25,10 +26,12 @@ function deviceToken() {
   return token;
 }
 
+// Read from browser storage without crashing if storage is blocked (e.g. private mode).
 function safeGet(key) {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
+// Write to browser storage without crashing if storage is blocked.
 function safeSet(key, value) {
   try { localStorage.setItem(key, value); } catch { /* ignore */ }
 }
@@ -37,6 +40,7 @@ function safeSet(key, value) {
 // away for a ticket that gives you 2 minutes to type your roll number.
 let pendingJoin = null; // { sessionId, ticket }
 
+// Swap the scanned QR code for a 2-minute join ticket.
 async function fetchTicket(sessionId, code) {
   const response = await fetch(
     `/api/sessions/${encodeURIComponent(sessionId)}/join-ticket?code=${encodeURIComponent(code)}`,
@@ -48,6 +52,7 @@ async function fetchTicket(sessionId, code) {
   return body.ticket;
 }
 
+// Join button: get a ticket if needed, then join with roll number + device ID; show clear errors.
 async function join(event) {
   event.preventDefault();
   const rollNo = $('roll-no').value.trim().toUpperCase();
@@ -99,10 +104,12 @@ async function join(event) {
   startQuiz();
 }
 
+// Show or hide the "type session number and code" fields (hidden when the QR was scanned).
 function showManualFields(show) {
   $('manual-fields').hidden = !show;
 }
 
+// Page opened from the QR: get the ticket straight away so slow typing does not matter.
 async function startFromQr(sessionId, code) {
   showManualFields(false);
   $('join-button').disabled = true;
@@ -119,6 +126,7 @@ async function startFromQr(sessionId, code) {
 
 // ---------- connection + resend ----------
 
+// After joining: show the quiz screen, connect live, start the resend timer, load the current state.
 function startQuiz() {
   buffer = new AnswerBuffer(identity.sessionId, identity.rollNo);
   $('join').hidden = true;
@@ -129,6 +137,7 @@ function startQuiz() {
   refreshState();
 }
 
+// Open the live connection; on loss, reconnect with growing delays (1 s, 2 s, 4 s... max 10 s).
 function connect() {
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
   setConnection('Connecting…', false);
@@ -153,6 +162,7 @@ function connect() {
   });
 }
 
+// Send every answer the server has not confirmed yet (same submissionId each time).
 function resendPending() {
   if (!connected) return;
   for (const submission of buffer.pendingSubmissions()) {
@@ -160,6 +170,7 @@ function resendPending() {
   }
 }
 
+// Server confirmed an answer: stop resending it and show the result.
 function onAck(ack) {
   const entry = buffer.resolve(ack);
   if (entry && currentQuestion && entry.submission.questionId === currentQuestion.id) {
@@ -167,6 +178,7 @@ function onAck(ack) {
   }
 }
 
+// Update the Connected / Reconnecting badge.
 function setConnection(text, ok) {
   $('connection').textContent = text;
   $('connection').className = ok ? 'pill ok' : 'pill warn';
@@ -174,6 +186,7 @@ function setConnection(text, ok) {
 
 // ---------- rendering ----------
 
+// Ask the server what to show now (question, my option order, time left). Called after every reconnect/broadcast.
 async function refreshState() {
   const { sessionId, rollNo, deviceToken: token } = identity;
   const url = `/api/sessions/${encodeURIComponent(sessionId)}/state`
@@ -188,6 +201,7 @@ async function refreshState() {
   render(await response.json());
 }
 
+// Draw the current question, the timer, and either the answer form or the answer status.
 function render(state) {
   currentQuestion = state.currentQuestion;
   clearInterval(countdownTimer);
@@ -212,6 +226,7 @@ function render(state) {
   renderAnswerForm();
 }
 
+// Draw the options (in this student's order) or the typed-answer box.
 function renderAnswerForm() {
   const form = $('answer-form');
   const options = $('options');
@@ -237,6 +252,7 @@ function renderAnswerForm() {
   }
 }
 
+// Submit: store the answer on the phone first, then send it.
 function submitAnswer(event) {
   event.preventDefault();
   const answer = { rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId: currentQuestion.id };
@@ -257,6 +273,7 @@ function submitAnswer(event) {
   resendPending();
 }
 
+// Turn the server's reply into a message: saved / late / first answer stands / not accepted.
 function showAnswerStatus(entry) {
   const status = $('answer-status');
   if (!entry || entry.status === 'PENDING') {
@@ -273,6 +290,7 @@ function showAnswerStatus(entry) {
   }
 }
 
+// Display-only timer from the server's "time left"; the server alone decides on-time.
 function startCountdown(remainingMs) {
   // Display only: the server alone decides whether an answer is on time.
   const endsAt = performance.now() + remainingMs;
@@ -284,6 +302,7 @@ function startCountdown(remainingMs) {
   countdownTimer = setInterval(tick, 250);
 }
 
+// Show a message instead of a question (e.g. waiting for the instructor).
 function showMessage(text) {
   $('question').hidden = true;
   $('message').hidden = false;
@@ -299,10 +318,12 @@ const FOCUS_DEBOUNCE_MS = 2000;
 let lastFocusSignalAt = 0;
 let enteredFullscreen = false;
 
+// Signals are only sent while a question is open and not yet answered.
 function questionIsOpenAndUnanswered() {
   return identity && currentQuestion && !$('answer-form').hidden;
 }
 
+// Report an integrity signal with sendBeacon (still delivered while the page is being hidden).
 function sendSignal(eventType) {
   if (!questionIsOpenAndUnanswered()) return;
   const body = JSON.stringify({
@@ -319,6 +340,7 @@ function sendSignal(eventType) {
   }
 }
 
+// Leaving the page fires two browser events; count it once within 2 seconds.
 function focusLost() {
   // Switching apps fires both "visibility hidden" and "blur": count it once.
   const now = Date.now();

@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class DoubtsController {
 
+    /** What a phone sends with a doubt. */
     public record DoubtRequest(String rollNo, String deviceToken, String text) {
     }
 
+    /** The dashboard's doubts panel: settings + the list. */
     public record DoubtsPanel(boolean enabled, boolean authorsVisible, List<DoubtView> doubts) {
     }
 
@@ -25,12 +27,14 @@ public class DoubtsController {
         this.doubtsService = doubtsService;
     }
 
+    /** Phone sends a doubt. */
     @PostMapping("/api/sessions/{sessionId}/doubts")
     public Map<String, String> submit(@PathVariable Long sessionId, @RequestBody DoubtRequest request) {
         doubtsService.submit(sessionId, request.rollNo(), request.deviceToken(), request.text());
         return Map.of("status", "sent");
     }
 
+    /** Instructor: the doubts panel. */
     @GetMapping("/api/sessions/{sessionId}/doubts")
     public DoubtsPanel list(@PathVariable Long sessionId) {
         return new DoubtsPanel(
@@ -39,12 +43,14 @@ public class DoubtsController {
                 doubtsService.forInstructor(sessionId));
     }
 
+    /** Instructor dismisses a doubt. */
     @PostMapping("/api/sessions/{sessionId}/doubts/{doubtId}/dismiss")
     public Map<String, String> dismiss(@PathVariable Long sessionId, @PathVariable Long doubtId) {
         doubtsService.dismiss(sessionId, doubtId);
         return Map.of("status", "dismissed");
     }
 
+    /** Instructor changes the on/off or show-authors setting. */
     @PostMapping("/api/sessions/{sessionId}/doubts-settings")
     public DoubtsPanel settings(
             @PathVariable Long sessionId,

@@ -45,6 +45,7 @@ public class IntegrityService {
         this.timingService = timingService;
     }
 
+    /** Stores one signal if it's from the right phone, for an open question, under the cap. */
     @Transactional
     public IntegrityOutcome record(Long sessionId, IntegrityReport report) {
         Instant arrivedAt = Instant.now();
@@ -74,6 +75,7 @@ public class IntegrityService {
         return IntegrityOutcome.RECORDED;
     }
 
+    /** Counts per student, question and signal type, for the dashboard. */
     @Transactional(readOnly = true)
     public List<IntegritySummaryRow> summary(Long sessionId) {
         return eventRepository.summarise(sessionId).stream()

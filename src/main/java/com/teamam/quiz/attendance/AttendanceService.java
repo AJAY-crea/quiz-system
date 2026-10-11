@@ -42,6 +42,7 @@ public class AttendanceService {
         this.threshold = threshold;
     }
 
+    /** Present/absent for every rostered student, in roll order, with flags (flags never change status). */
     @Transactional(readOnly = true)
     public AttendanceReport derive(Long sessionId) {
         QuizSession session = sessionRepository
@@ -81,6 +82,7 @@ public class AttendanceService {
                 rows);
     }
 
+    /** The proxy/device flags recorded for this student's join. */
     private static List<String> flagsOf(Participant participant) {
         if (participant == null || !participant.isFlagged() || participant.getFlagReason() == null) {
             return List.of();

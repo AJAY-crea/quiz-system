@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+/** Table: one lecture's quiz: its roster, which question is open, joining window, doubt settings. */
 @Entity
 @Table(name = "quiz_sessions")
 public class QuizSession {

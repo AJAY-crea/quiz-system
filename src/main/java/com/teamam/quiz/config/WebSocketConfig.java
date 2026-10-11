@@ -6,10 +6,12 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+/** Turns on the live connection (WebSocket + STOMP) so the server can push to phones instantly. */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    /** Sets up the message channels: /topic = to everyone, /queue = to one phone, /app = phone to server. */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // /topic = broadcast to the whole class; /queue = per-student messages such as answer acks.
@@ -17,6 +19,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setApplicationDestinationPrefixes("/app");
     }
 
+    /** The address phones connect to (/ws, or /ws/websocket for a plain WebSocket). */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws").setAllowedOriginPatterns("*").withSockJS();

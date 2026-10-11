@@ -21,6 +21,7 @@ public class ExportController {
         this.exportService = exportService;
     }
 
+    /** Instructor downloads the score sheet (.xlsx). */
     @GetMapping("/api/sessions/{sessionId}/export.xlsx")
     public ResponseEntity<byte[]> xlsx(@PathVariable Long sessionId) {
         return download(exportService.xlsx(sessionId), XLSX, "session-" + sessionId + "-scores.xlsx");
@@ -32,6 +33,7 @@ public class ExportController {
         return download(exportService.csv(sessionId), new MediaType("text", "csv"), "session-" + sessionId + "-scores.csv");
     }
 
+    /** Sends bytes as a file download with a filename. */
     private static ResponseEntity<byte[]> download(byte[] body, MediaType type, String filename) {
         return ResponseEntity.ok()
                 .contentType(type)

@@ -21,6 +21,7 @@ public final class RosterFileParser {
     private RosterFileParser() {
     }
 
+    /** Reads the uploaded CSV into (roll number, name) entries, skipping blanks and the header. */
     public static List<RosterEntry> parse(MultipartFile file) throws IOException {
         List<RosterEntry> entries = new ArrayList<>();
         try (BufferedReader reader =
@@ -47,6 +48,7 @@ public final class RosterFileParser {
         return entries;
     }
 
+    /** Removes surrounding quotes from a CSV value like "Reddy, Ajay". */
     private static String unquote(String value) {
         if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
             return value.substring(1, value.length() - 1).replace("\"\"", "\"");

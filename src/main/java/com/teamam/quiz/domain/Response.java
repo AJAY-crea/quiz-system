@@ -15,6 +15,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "responses",
         uniqueConstraints = @UniqueConstraint(columnNames = {"session_id", "question_id", "roll_no"}))
+/** Table: one student's answer to one question. The unique rule below allows only ONE per student per question. */
 public class Response {
 
     @Id

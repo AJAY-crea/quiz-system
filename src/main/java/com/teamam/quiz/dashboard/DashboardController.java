@@ -66,6 +66,7 @@ public class DashboardController {
         this.timingService = timingService;
     }
 
+    /** All sessions, newest first, for the dashboard's session picker. */
     @GetMapping("/api/dashboard/sessions")
     public List<SessionView> sessions() {
         return sessionRepository.findAll().stream()
@@ -74,6 +75,7 @@ public class DashboardController {
                 .toList();
     }
 
+    /** Everything the dashboard shows for a session, assembled from the other modules. */
     @GetMapping("/api/sessions/{sessionId}/dashboard")
     @Transactional(readOnly = true)
     public DashboardView dashboard(@PathVariable Long sessionId) {
@@ -96,6 +98,7 @@ public class DashboardController {
                 joinWindowService.status(sessionId));
     }
 
+    /** The join QR image for the current code, pointing at the chosen classroom address. */
     @GetMapping(value = "/api/sessions/{sessionId}/join-qr.svg")
     public ResponseEntity<String> joinQr(@PathVariable Long sessionId, @RequestParam String base) {
         if (!PLAIN_BASE_URL.matcher(base).matches()) {
@@ -135,6 +138,7 @@ public class DashboardController {
         return addresses;
     }
 
+    /** One row of the live-quiz table: state, answers so far, time left if open. */
     private DashboardView.QuestionRow questionRow(QuizSession session, Question q) {
         boolean released = q.getReleasedAt() != null;
         Long remainingMs = null;

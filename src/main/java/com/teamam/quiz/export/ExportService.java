@@ -62,11 +62,13 @@ public class ExportService {
         this.attendanceService = attendanceService;
     }
 
+    /** The score sheet as an Excel file. */
     @Transactional(readOnly = true)
     public byte[] xlsx(Long sessionId) {
         return toXlsx(build(sessionId));
     }
 
+    /** The same score sheet as CSV (backup if Excel ever misbehaves). */
     @Transactional(readOnly = true)
     public byte[] csv(Long sessionId) {
         return toCsv(build(sessionId));
@@ -128,6 +130,7 @@ public class ExportService {
         return new ScoreSheet("Session " + session.getId(), header, rows, about);
     }
 
+    /** One cell: 1/0 for MCQ (0 if late), "review" for typed, blank if not answered. */
     private static Object markFor(Question question, Response response) {
         if (response == null) {
             return null;
@@ -138,6 +141,7 @@ public class ExportService {
         return response.isOnTime() && Boolean.TRUE.equals(response.getCorrect()) ? 1.0 : 0.0;
     }
 
+    /** Writes the sheet to .xlsx: bold header, frozen first row, sensible column widths, an About sheet. */
     private static byte[] toXlsx(ScoreSheet sheet) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             CellStyle bold = workbook.createCellStyle();
@@ -188,6 +192,7 @@ public class ExportService {
         }
     }
 
+    /** Longest text in a column, to set its width. */
     private static int widestText(ScoreSheet sheet, int column) {
         int widest = sheet.header().get(column).length();
         for (List<Object> row : sheet.rows()) {
@@ -199,6 +204,7 @@ public class ExportService {
         return widest;
     }
 
+    /** Writes the sheet as CSV text (with a marker so Excel reads names correctly). */
     private static byte[] toCsv(ScoreSheet sheet) {
         StringBuilder csv = new StringBuilder("﻿"); // BOM so Excel reads UTF-8 names correctly
         csv.append(sheet.header().stream().map(ExportService::csvField).collect(Collectors.joining(","))).append("\r\n");

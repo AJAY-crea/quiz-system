@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/** Database access for integrity signals, including the per-student summary query. */
 public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, Long> {
 
     long countBySessionIdAndQuestionIdAndRollNo(Long sessionId, Long questionId, String rollNo);

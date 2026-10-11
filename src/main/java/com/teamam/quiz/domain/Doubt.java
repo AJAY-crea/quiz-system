@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
+/** Table: an anonymous doubt a student sent, tagged with the question open at the time. */
 @Entity
 @Table(name = "doubts")
 public class Doubt {

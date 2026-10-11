@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+/** Web endpoints for the roster: upload the CSV (instructor) and join (phones). */
 @RestController
 @RequestMapping("/api/roster")
 public class RosterController {
@@ -23,6 +24,7 @@ public class RosterController {
         this.rosterService = rosterService;
     }
 
+    /** Instructor uploads the roster CSV; replies with how many students were read. */
     @PostMapping("/{sessionId}/upload")
     public ResponseEntity<Map<String, Object>> upload(
             @PathVariable Long sessionId, @RequestParam("file") MultipartFile file) throws IOException {
@@ -31,6 +33,7 @@ public class RosterController {
         return ResponseEntity.ok(Map.of("sessionId", sessionId, "rosterSize", entries.size()));
     }
 
+    /** A phone joins with roll number + device ID + ticket; 403 if refused. */
     @PostMapping("/{sessionId}/join")
     public ResponseEntity<JoinResult> join(@PathVariable Long sessionId, @RequestBody JoinRequest request) {
         JoinResult result = rosterService.join(sessionId, request.rollNo(), request.deviceToken(), request.ticket());
