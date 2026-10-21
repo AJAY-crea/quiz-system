@@ -194,11 +194,32 @@ async function refreshState() {
   const response = await fetch(url).catch(() => null);
   if (!response) return; // offline; the reconnect path will call us again
   if (response.status === 403) {
+    const body = await response.json().catch(() => ({}));
+    if ((body.error ?? '').includes('has not joined')) {
+      // The saved identity belongs to an older session with the same number (e.g. the server's
+      // database was reset), so this session has never seen this phone: go back to the join form.
+      forgetIdentityAndRejoin(identity.sessionId);
+      return;
+    }
     showMessage('This roll number has been joined from another device. Ask the instructor.');
     return;
   }
   if (!response.ok) return;
   render(await response.json());
+}
+
+// Drop the saved identity and reload into the join form for this session (roll number stays pre-filled).
+function forgetIdentityAndRejoin(sessionId) {
+  try {
+    localStorage.removeItem('quiz:identity');
+  } catch {
+    // Storage blocked: the reload below still shows the join form because identity is not re-read.
+  }
+  // Opened from a fresh QR scan: reuse its code so the student just enters the roll number.
+  const query = scannedSession === String(sessionId) && scannedCode
+    ? `?s=${encodeURIComponent(scannedSession)}&c=${encodeURIComponent(scannedCode)}`
+    : `?rejoin=${encodeURIComponent(sessionId)}`;
+  location.replace(location.pathname + query);
 }
 
 // Draw the current question, the timer, and either the answer form or the answer status.
@@ -400,6 +421,7 @@ $('answer-form').addEventListener('submit', submitAnswer);
 const params = new URLSearchParams(location.search);
 const scannedSession = params.get('s');
 const scannedCode = params.get('c');
+const rejoinSession = params.get('rejoin');
 
 const saved = safeGet('quiz:identity');
 if (saved) {
@@ -417,4 +439,8 @@ if (identity) {
   startQuiz();
 } else if (scannedSession && scannedCode) {
   startFromQr(scannedSession, scannedCode);
+} else if (rejoinSession) {
+  $('session-id').value = rejoinSession;
+  $('join-error').textContent =
+    'This session does not know this phone yet (it may have been restarted). Scan the QR or enter the code on the screen to join again.';
 }

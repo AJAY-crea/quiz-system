@@ -124,7 +124,7 @@ public class DashboardController {
         int port = request.getLocalPort();
         List<Map<String, String>> addresses = new ArrayList<>();
         for (NetworkInterface nic : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-            if (!nic.isUp() || nic.isLoopback() || nic.isVirtual()) {
+            if (!nic.isUp() || nic.isLoopback() || nic.isVirtual() || isVirtualMachineAdapter(nic.getDisplayName())) {
                 continue;
             }
             for (InetAddress address : Collections.list(nic.getInetAddresses())) {
@@ -135,7 +135,28 @@ public class DashboardController {
                 }
             }
         }
+        // The first entry becomes the default, so put the likeliest classroom network first.
+        addresses.sort(Comparator.comparingInt(a -> classroomRank(a.get("adapter"), a.get("url"))));
         return addresses;
+    }
+
+    /** Adapters made by VM/container software (VirtualBox, VMware, Hyper-V, WSL): phones can never reach them. */
+    static boolean isVirtualMachineAdapter(String adapterName) {
+        String name = adapterName == null ? "" : adapterName.toLowerCase();
+        return name.contains("virtualbox") || name.contains("vmware") || name.contains("hyper-v")
+                || name.contains("vethernet") || name.contains("wsl") || name.contains("docker");
+    }
+
+    /** Lower = listed first: the laptop's own hotspot, then Wi-Fi, then anything else (e.g. a cable). */
+    static int classroomRank(String adapterName, String url) {
+        String name = adapterName == null ? "" : adapterName.toLowerCase();
+        if (name.contains("wi-fi direct") || url.contains("//192.168.137.")) {
+            return 0;
+        }
+        if (name.contains("wi-fi") || name.contains("wifi") || name.contains("wireless") || name.contains("802.11")) {
+            return 1;
+        }
+        return 2;
     }
 
     /** One row of the live-quiz table: state, answers so far, time left if open. */

@@ -508,3 +508,68 @@ check question after each), plus AI-generated documentation (Module 3).
 - A walk-through it wrote claimed that reloading the phone page re-runs the join. Reading
   `student.js` showed the page restores the saved identity instead and never calls join, so the
   walk-through was corrected before I used it.
+
+---
+
+## 2026-10-12 to 10-21: live testing on real phones, and the mid-evaluation (Ajay + Mukesh)
+
+**What we did:** ran the full app on the laptop, with real phones as students, following our own
+test checklist (join by QR, release, answer, airplane mode, late answer, doubts, signals, export,
+restart). Each thing that looked wrong was given to the assistant as a bug report, with a phone
+screenshot where we had one.
+
+**Prompts (verbatim)**
+> [phone screenshot: "This roll number has been joined from another device"] Why is this happening.
+> And also it says 0 joined
+
+> and also integrity signals are not working , i tested like sitiching off wifi and also leaving the
+> page and all,it didnt show on instructor page, remember this issue
+
+> the link in the phone isnt working , can u check one
+
+**Technique:** AI-assisted debugging (Module 4): a symptom plus evidence; the AI first reads the
+code to explain the cause, then reproduces it in isolation before any fix.
+
+**Findings (recorded in KNOWN_ISSUES.md)**
+1. *"Joined from another device", 0 joined:* a **real bug**. The phone had a saved identity for
+   "session 1" from an older database; the fresh database also starts at session 1, so the page
+   skipped Join, the server answered 403 "not joined", and the page showed one generic message for
+   every 403.
+2. *Signals not showing:* reproduced with a scripted phone, and the **pipeline worked**. Our manual
+   test broke the rules on purpose-built conditions: Q1 was already answered, Q2's time was over,
+   and Wi-Fi was off. One **real limitation**: signals made while offline are lost (not buffered).
+3. *Link not opening:* the Ethernet cable had been unplugged, so its address vanished, and the
+   dashboard listed the **VirtualBox** adapter first, which became the QR's default address that
+   no phone can reach.
+
+**Mid-evaluation:** the live modification tasks were practised with Gemini using our
+`GEMINI_CONTEXT.md` summary. The practice changes ("even roll numbers see the instructor's order,
+odd ones reversed"; "latest answer wins") were reverted afterwards (`git checkout -- .`), and
+all 49 tests passed again.
+
+---
+
+## 2026-10-21 — Fixes: rejoin on the same phone, classroom-address default (Ajay)
+
+**Prompt (verbatim)**
+> yeah i faced that rejoining on same phone has some issues we need to see that ... and then that
+> dashboard thing for wifi any issue there??
+
+**Refined prompt (drafted by the assistant, approved by Ajay)**
+> Fix two bugs from KNOWN_ISSUES.md without changing the join rules.
+> (1) student.js: when GET /state returns 403 with "has not joined this session", forget the saved
+> identity and return to joining. If the page was opened from a fresh QR, reuse its code so the
+> student only presses Join; otherwise show the join form with the session number filled in and a
+> clear message. Keep the "joined from another device" message for the other 403 case.
+> (2) DashboardController.hostAddresses: hide adapters made by VM/container software (VirtualBox,
+> VMware, Hyper-V, WSL, Docker) and order the rest hotspot → Wi-Fi → cable, so the default QR
+> address is reachable. Add a unit test using the real adapter names from this laptop.
+> Constraints: no new libraries; all existing tests must still pass. Verify (1) in a real browser by
+> planting a stale identity.
+
+**Techniques:** a negative constraint (don't change the join rules), a test from real observed data
+(adapter names), verification by reproduction.
+
+**Result:** 50/50 tests (1 new: `ClassroomAddressTest`). Browser check: a stale identity + a new
+QR → back to Join with the roll number pre-filled → joined (count 0 → 1); without a QR → the join
+form with the session number and the message; no JS errors.
