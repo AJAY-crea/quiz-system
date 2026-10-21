@@ -616,3 +616,32 @@ the deadline). Browser check:
 **Known limit (honest):** the Wake Lock only works on HTTPS (or localhost), so on the classroom's
 plain-http address an automatic screen timeout still shows as "away". The time-away figure lets the
 instructor judge.
+
+---
+
+## 2026-10-21 — Students on mobile data: optional internet link (Ajay)
+
+**Prompt (verbatim)**
+> and also making students to be on same network is not ok i guess they usually use celluar , so
+> what to do??
+
+**AI analysis (before code):** the laptop's address is private, so phones on mobile data can't
+reach it. The laptop hotspot is no fix either: Windows allows only 8 devices. Options: a tunnel
+(the app stays on the laptop and gets a public https link) or cloud hosting (needs an instructor
+login and deployment). It flagged a **security hole a tunnel would open**: the tunnel program runs
+on the laptop, so every tunnelled phone would look like "localhost", i.e. the instructor.
+
+**Refined prompt (drafted by the assistant, approved by Ajay)**
+> Support an optional public link without weakening security. Tests first:
+> (1) InstructorOnlyFilter must treat any request carrying a proxy header (Forwarded,
+> X-Forwarded-For, X-Real-IP, CF-Connecting-IP) as a phone, even from 127.0.0.1. Write the failing
+> test first and confirm it fails.
+> (2) A --quiz.public-url property; when set, the dashboard offers it first as the QR address.
+> No new libraries in the app; document the Cloudflare quick-tunnel steps in the README.
+
+**Techniques:** asking for options and risks before choosing; test-first with a test written to
+expose the hole (it failed with 404, i.e. a tunnelled "phone" reached Release); negative
+constraint (don't weaken security).
+
+**Result:** 54/54 tests (new: `tunnelledRequestsAreNeverTreatedAsTheInstructor`,
+`PublicLinkTest`). The live tunnel run is still to be done once cloudflared is installed.

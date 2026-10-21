@@ -37,7 +37,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (requiresInstructor(request) && !isLoopback(request.getRemoteAddr())) {
+        if (requiresInstructor(request) && !isFromThisLaptop(request)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\":\"" + MESSAGE + "\"}");
@@ -56,6 +56,19 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
         return path.equals("/instructor.html")
                 || path.startsWith("/js/instructor")
                 || path.startsWith("/h2-console");
+    }
+
+    // Headers a proxy or tunnel (Cloudflare Tunnel, ngrok, a reverse proxy) adds to say "this came from elsewhere".
+    private static final List<String> PROXY_HEADERS =
+            List.of("Forwarded", "X-Forwarded-For", "X-Real-IP", "CF-Connecting-IP");
+
+    /**
+     * Is this really the instructor at the laptop? It must come from localhost AND not have passed
+     * through a tunnel: a tunnel program runs on the laptop too, so its traffic also looks local.
+     */
+    static boolean isFromThisLaptop(HttpServletRequest request) {
+        return isLoopback(request.getRemoteAddr())
+                && PROXY_HEADERS.stream().noneMatch(header -> request.getHeader(header) != null);
     }
 
     /** Did the request come from this laptop itself (localhost)? */

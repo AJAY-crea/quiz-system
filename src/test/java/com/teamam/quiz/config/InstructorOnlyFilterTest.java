@@ -21,8 +21,30 @@ class InstructorOnlyFilterTest {
         return request;
     };
 
+    // A phone on mobile data reaching the laptop through a tunnel (e.g. Cloudflare): the TCP
+    // connection comes from the tunnel program on the laptop itself, but the proxy adds a header.
+    private static final RequestPostProcessor FROM_A_PHONE_THROUGH_A_TUNNEL = request -> {
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("CF-Connecting-IP", "49.37.12.8");
+        request.addHeader("X-Forwarded-For", "49.37.12.8");
+        return request;
+    };
+
     @Autowired
     private MockMvc mockMvc;
+
+    // Guards against: every tunnelled phone counting as "the instructor's laptop" (the tunnel
+    // program runs on the laptop, so its connections come from localhost).
+    @Test
+    void tunnelledRequestsAreNeverTreatedAsTheInstructor() throws Exception {
+        mockMvc.perform(post("/api/sessions/1/questions/1/release").with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/instructor.html").with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
+        // ...while what phones need still works through the tunnel (404 = reached the controller).
+        mockMvc.perform(post("/api/sessions/999/join-ticket").param("code", "x").with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isNotFound());
+    }
 
     // Guards against: any student on the classroom Wi-Fi releasing questions, reading the live join
     // code, uploading a roster, or reading attendance.

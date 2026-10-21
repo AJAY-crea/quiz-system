@@ -35,11 +35,25 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
    included. A CSV copy is there as a fallback.
 7. **Doubts** appear live, tagged with the question that was open. They're anonymous unless you
    tick "Show who asked", and you can dismiss them or turn the channel off.
-8. **Integrity signals** list how often a student left the page, exited full screen, or pasted
-   while a question was open. Treat them as prompts to look, not proof: phones also do this on a
-   screen lock or an incoming call.
+8. **Integrity signals** list how often, and for how many seconds, a student left the page (or the
+   screen went off), exited full screen, or pasted while a question was open, answered or not.
+   Treat them as prompts to look, not proof: a page can't tell "switched app" from "screen off".
 
-Students need nothing installed and no internet. Everything is served by the laptop.
+Students need nothing installed. On the same Wi-Fi (or the laptop's hotspot), no internet is needed:
+everything is served by the laptop.
+
+### Students on mobile data (optional internet link)
+Phones on mobile data can't reach a laptop's local address. A free Cloudflare quick tunnel gives the
+laptop a public `https://` link (the laptop needs internet):
+
+1. Install once: `winget install --id Cloudflare.cloudflared`
+2. Start the app, then in a second terminal: `cloudflared tunnel --url http://localhost:8080`
+   It prints a link like `https://some-words.trycloudflare.com` (new each time).
+3. Restart the app with that link so the dashboard offers it first for the QR:
+   `java -jar target\quiz-system-0.1.0-SNAPSHOT.jar --quiz.public-url=https://some-words.trycloudflare.com`
+
+Instructor actions stay laptop-only: requests arriving through a tunnel are always treated as phones.
+Over https the student page also keeps the screen awake while a question is open.
 
 ## API
 

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class DashboardController {
 
+    /**
+     * Optional public link (e.g. a Cloudflare Tunnel https://….trycloudflare.com) so phones on mobile
+     * data can join; set with --quiz.public-url=... and offered first in the address list.
+     */
+    private final String publicUrl;
+
     private static final Pattern PLAIN_BASE_URL = Pattern.compile("https?://[A-Za-z0-9.\\-]+(:\\d{1,5})?");
 
     private final QuizSessionRepository sessionRepository;
@@ -57,13 +64,15 @@ public class DashboardController {
             ParticipantRepository participantRepository,
             ResponseRepository responseRepository,
             JoinWindowService joinWindowService,
-            TimingService timingService) {
+            TimingService timingService,
+            @Value("${quiz.public-url:}") String publicUrl) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.participantRepository = participantRepository;
         this.responseRepository = responseRepository;
         this.joinWindowService = joinWindowService;
         this.timingService = timingService;
+        this.publicUrl = publicUrl.endsWith("/") ? publicUrl.substring(0, publicUrl.length() - 1) : publicUrl;
     }
 
     /** All sessions, newest first, for the dashboard's session picker. */
@@ -137,6 +146,9 @@ public class DashboardController {
         }
         // The first entry becomes the default, so put the likeliest classroom network first.
         addresses.sort(Comparator.comparingInt(a -> classroomRank(a.get("adapter"), a.get("url"))));
+        if (PLAIN_BASE_URL.matcher(publicUrl).matches()) {
+            addresses.add(0, Map.of("url", publicUrl, "adapter", "Internet link: works on mobile data"));
+        }
         return addresses;
     }
 
