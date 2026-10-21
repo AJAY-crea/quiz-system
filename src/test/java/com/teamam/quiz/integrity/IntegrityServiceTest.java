@@ -4,13 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.teamam.quiz.TestQuiz;
 import com.teamam.quiz.domain.IntegrityEventType;
+import com.teamam.quiz.domain.Question;
 import com.teamam.quiz.domain.QuestionType;
 import com.teamam.quiz.questionbank.QuestionBankService;
 import com.teamam.quiz.repository.IntegrityEventRepository;
+import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.resilience.ResilienceService;
 import com.teamam.quiz.session.SessionStateService;
 import com.teamam.quiz.timing.TimingService;
+import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,6 +41,9 @@ class IntegrityServiceTest {
 
     @Autowired
     private ResponseRepository responses;
+
+    @Autowired
+    private QuestionRepository questions;
 
     @Autowired
     private QuestionBankService bank;
@@ -74,13 +81,13 @@ class IntegrityServiceTest {
         assertThat(events.countBySessionIdAndRollNo(quiz.sessionId, rollNo)).isZero();
     }
 
-    // Guards against: noise from questions that aren't open (not released yet, or already closed).
+    // Guards against: noise from questions that aren't open (not released yet, or closed long ago).
     @Test
-    void ignoresSignalsOutsideAnOpenQuestion() throws InterruptedException {
+    void ignoresSignalsOutsideAnOpenQuestion() {
         String rollNo = "CS23B903";
         TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 0, rollNo);
         Long unreleased = bank.add(quiz.sessionId, 2, QuestionType.MCQ, "later", TestQuiz.OPTIONS, 0, 60).getId();
-        Thread.sleep(TimingService.GRACE_WINDOW.toMillis() + 300);
+        releasedAgo(quiz.questionId, IntegrityService.LATE_REPORT_WINDOW.plusMinutes(1));
 
         assertThat(integrity.record(quiz.sessionId, new IntegrityReport(
                 rollNo, TestQuiz.deviceOf(rollNo), quiz.questionId, IntegrityEventType.FOCUS_LOSS)))
@@ -88,6 +95,48 @@ class IntegrityServiceTest {
         assertThat(integrity.record(quiz.sessionId, new IntegrityReport(
                 rollNo, TestQuiz.deviceOf(rollNo), unreleased, IntegrityEventType.FOCUS_LOSS)))
                 .isEqualTo(IntegrityOutcome.REJECTED);
+    }
+
+    // Guards against: losing a "left the page" report that arrives when the student comes back just
+    // after the deadline, or after the phone reconnects (reports are sent on return / reconnect).
+    @Test
+    void acceptsReportArrivingShortlyAfterDeadline() throws InterruptedException {
+        String rollNo = "CS23B905";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 0, rollNo);
+        Thread.sleep(TimingService.GRACE_WINDOW.toMillis() + 300);
+
+        assertThat(integrity.record(quiz.sessionId, new IntegrityReport(
+                rollNo, TestQuiz.deviceOf(rollNo), quiz.questionId, IntegrityEventType.FOCUS_LOSS, 5_000L)))
+                .isEqualTo(IntegrityOutcome.RECORDED);
+    }
+
+    // Guards against: the dashboard showing only a count, when "away 2 s" (screen blip) and
+    // "away 40 s" (another app) need to look different to the instructor.
+    @Test
+    void summaryAddsUpTimeAwayPerStudentAndQuestion() {
+        String rollNo = "CS23B906";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+        String device = TestQuiz.deviceOf(rollNo);
+
+        integrity.record(quiz.sessionId,
+                new IntegrityReport(rollNo, device, quiz.questionId, IntegrityEventType.FOCUS_LOSS, 12_400L));
+        integrity.record(quiz.sessionId,
+                new IntegrityReport(rollNo, device, quiz.questionId, IntegrityEventType.FOCUS_LOSS, 28_700L));
+
+        assertThat(integrity.summary(quiz.sessionId))
+                .filteredOn(row -> row.rollNo().equals(rollNo))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.count()).isEqualTo(2);
+                    assertThat(row.awaySeconds()).isEqualTo(41);
+                });
+    }
+
+    /** Moves a question's release time into the past, so its deadline has long gone. */
+    private void releasedAgo(Long questionId, Duration ago) {
+        Question question = questions.findById(questionId).orElseThrow();
+        question.setReleasedAt(Instant.now().minus(ago));
+        questions.save(question);
     }
 
     // Guards against: one flaky phone (or a script) filling the database with thousands of events.

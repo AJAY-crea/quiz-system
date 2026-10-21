@@ -573,3 +573,46 @@ all 49 tests passed again.
 **Result:** 50/50 tests (1 new: `ClassroomAddressTest`). Browser check: a stale identity + a new
 QR → back to Join with the roll number pre-filled → joined (count 0 → 1); without a QR → the join
 form with the session number and the message; no JS errors.
+
+---
+
+## 2026-10-21 — Integrity signals, redesigned (Mukesh; Ajay typing, Mukesh present and deciding)
+
+**Prompt (verbatim, Ajay with Mukesh)**
+> integrity singals are lost i mean for now its ok right like when he didnt answer the present
+> question it records after answering also we should record becus students should neveer go to
+> other tab during this process , i think that would be fair , in that case smtg like screen off
+> will also be recorded which is not ok, we need to have a better wya for this
+
+**AI critique first (before any code):** a web page **cannot** tell "switched app" from "screen
+turned off": the browser reports both only as "page hidden". So the assistant proposed recording
+*how long* the page was hidden instead of a bare count, and five independent steps for us to choose.
+
+**Refined prompt (drafted by the assistant, approved by Mukesh: all 5 steps)**
+> Act as a reviewer worried about false accusations. Rework integrity signals (advisory only):
+> 1. Record while the question is open, answered or not.
+> 2. Measure how long the page was hidden: remember when it hid, report on return (also after a
+>    page reload), and show "N× · S s away" on the dashboard.
+> 3. Ignore a plain window "blur" (notification shade, system pop-up); count only "page hidden".
+> 4. While a question is open, request a screen Wake Lock so the screen doesn't time out. It needs
+>    HTTPS, so fail silently on plain http.
+> 5. Keep unsent signals on the phone, like answers, and retry every 5 s, so going offline loses
+>    nothing. The server should accept reports up to 2 minutes after the deadline, because they
+>    are sent on return.
+> Constraints: the phone-measured time away is advisory, like the signal; cap it. The new DB column
+> must be nullable (existing databases). Signals still never touch marks. Tests first for the
+> server; verify the phone behaviour in a real browser, including offline.
+
+**Techniques:** asking the AI to critique a requirement before building; role prompting (false
+accusations); negative constraints; tests first; verification by reproduction (offline emulation).
+
+**Result:** 52/52 tests (new: `acceptsReportArrivingShortlyAfterDeadline`,
+`summaryAddsUpTimeAwayPerStudentAndQuestion`; the "closed question" test now checks 2+ minutes after
+the deadline). Browser check:
+- away 3 s *after answering* → "1× · 3 s away";
+- a plain blur → not counted;
+- came back while offline → kept on the phone, delivered 5 s after reconnecting ("2× · 5 s away").
+
+**Known limit (honest):** the Wake Lock only works on HTTPS (or localhost), so on the classroom's
+plain-http address an automatic screen timeout still shows as "away". The time-away figure lets the
+instructor judge.

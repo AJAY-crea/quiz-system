@@ -146,12 +146,14 @@ async function renderDoubts() {
 async function renderIntegrity() {
   lastIntegrityRefresh = Date.now();
   const rows = await api('GET', `/api/sessions/${sessionId}/integrity`);
-  const labels = { FOCUS_LOSS: 'left the page', FULLSCREEN_EXIT: 'exited full screen', PASTE: 'pasted text' };
+  // A page can't tell "switched app" from "screen off", so the label says both and the time away helps judge.
+  const labels = { FOCUS_LOSS: 'left the page / screen off', FULLSCREEN_EXIT: 'exited full screen', PASTE: 'pasted text' };
   const body = $('integrity');
   body.replaceChildren();
   for (const r of rows) {
     const tr = document.createElement('tr');
-    tr.append(cell(r.rollNo), cell(`Q${r.questionOrder}`), cell(labels[r.eventType] ?? r.eventType), cell(r.count));
+    tr.append(cell(r.rollNo), cell(`Q${r.questionOrder}`), cell(labels[r.eventType] ?? r.eventType),
+      cell(r.eventType === 'FOCUS_LOSS' ? `${r.count}× · ${r.awaySeconds} s away` : `${r.count}×`));
     body.append(tr);
   }
   $('integrity-empty').hidden = rows.length > 0;

@@ -38,6 +38,10 @@ public class IntegrityEvent {
 
     private Instant occurredAt = Instant.now();
 
+    /** How long the page was hidden, in ms (FOCUS_LOSS only; nullable so existing databases update cleanly). */
+    @Column(name = "away_ms")
+    private Long awayMs;
+
     protected IntegrityEvent() {
     }
 
@@ -46,6 +50,13 @@ public class IntegrityEvent {
         this.question = question;
         this.rollNo = rollNo;
         this.eventType = eventType;
+    }
+
+    /** A signal with how long the student was away (FOCUS_LOSS). */
+    public IntegrityEvent(QuizSession session, Question question, String rollNo, IntegrityEventType eventType,
+            Long awayMs) {
+        this(session, question, rollNo, eventType);
+        this.awayMs = awayMs;
     }
 
     public Long getId() {
@@ -70,5 +81,9 @@ public class IntegrityEvent {
 
     public Instant getOccurredAt() {
         return occurredAt;
+    }
+
+    public Long getAwayMs() {
+        return awayMs;
     }
 }

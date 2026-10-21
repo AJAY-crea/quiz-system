@@ -134,6 +134,9 @@ function startQuiz() {
   $('who').textContent = `${identity.rollNo} · session ${identity.sessionId}`;
   connect();
   setInterval(resendPending, RESEND_INTERVAL_MS);
+  setInterval(flushSignals, RESEND_INTERVAL_MS); // unsent integrity signals, e.g. after being offline
+  reportReturn(); // the page was hidden or closed during a question last time
+  flushSignals();
   refreshState();
 }
 
@@ -228,6 +231,7 @@ function render(state) {
   clearInterval(countdownTimer);
 
   if (!currentQuestion) {
+    letScreenSleep();
     showMessage('Waiting for the instructor to release the first question…');
     return;
   }
@@ -237,6 +241,7 @@ function render(state) {
   $('question-number').textContent = `Question ${currentQuestion.orderIndex}`;
   $('question-text').textContent = currentQuestion.text;
   startCountdown(state.remainingMs);
+  keepScreenAwake();
 
   const entry = buffer.get(currentQuestion.id);
   if (entry || state.alreadyAnswered) {
@@ -315,9 +320,11 @@ function showAnswerStatus(entry) {
 function startCountdown(remainingMs) {
   // Display only: the server alone decides whether an answer is on time.
   const endsAt = performance.now() + remainingMs;
+  questionClosesAt = Date.now() + remainingMs;
   const tick = () => {
     const secondsLeft = Math.max(0, Math.ceil((endsAt - performance.now()) / 1000));
     $('countdown').textContent = secondsLeft > 0 ? `${secondsLeft}s left` : 'Time is up';
+    if (secondsLeft === 0) letScreenSleep();
   };
   tick();
   countdownTimer = setInterval(tick, 250);
@@ -331,50 +338,119 @@ function showMessage(text) {
 }
 
 // ---------- integrity signals (advisory) ----------
-// Sent only while a question is open and not yet answered, so an innocent tab switch after
-// answering creates no noise. sendBeacon is used because once the page is hidden, a normal
-// request may be cut off; the browser finishes a beacon even as the page goes away.
+// Recorded while a question is open, answered or not: students should stay on the quiz page
+// until time is up. A web page cannot tell "switched to another app" from "screen turned off"
+// (both just hide the page), so instead of a bare count we report HOW LONG the page was hidden,
+// and keep the screen awake while a question is open where the browser allows it (Wake Lock,
+// HTTPS only). A plain "blur" (notification shade, a system pop-up) is ignored: the quiz never
+// left the screen. Signals are kept on the phone until the server has them, like answers, so
+// going offline loses nothing.
 
-const FOCUS_DEBOUNCE_MS = 2000;
-let lastFocusSignalAt = 0;
+const HIDDEN_KEY = 'quiz:hidden'; // { questionId, at } saved while the page is hidden
+let questionClosesAt = 0;         // phone time when the open question's countdown ends (used only to gate signals)
 let enteredFullscreen = false;
+let wakeLock = null;
+let flushingSignals = false;
 
-// Signals are only sent while a question is open and not yet answered.
-function questionIsOpenAndUnanswered() {
-  return identity && currentQuestion && !$('answer-form').hidden;
+// Signals are recorded while a question is open (answered or not).
+function questionIsOpen() {
+  return Boolean(identity && currentQuestion && Date.now() < questionClosesAt);
 }
 
-// Report an integrity signal with sendBeacon (still delivered while the page is being hidden).
-function sendSignal(eventType) {
-  if (!questionIsOpenAndUnanswered()) return;
-  const body = JSON.stringify({
-    rollNo: identity.rollNo,
-    deviceToken: identity.deviceToken,
-    questionId: currentQuestion.id,
-    eventType,
-  });
-  const url = `/api/sessions/${encodeURIComponent(identity.sessionId)}/integrity`;
-  const blob = new Blob([body], { type: 'application/json' });
-  if (!(navigator.sendBeacon && navigator.sendBeacon(url, blob))) {
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true })
-      .catch(() => {});
+// Where this student's unsent signals are kept on the phone.
+function signalsKey() {
+  return `quiz:${identity.sessionId}:${identity.rollNo}:signals`;
+}
+
+// Unsent signals stored on the phone.
+function readSignals() {
+  try {
+    return JSON.parse(safeGet(signalsKey())) ?? [];
+  } catch {
+    return [];
   }
 }
 
-// Leaving the page fires two browser events; count it once within 2 seconds.
-function focusLost() {
-  // Switching apps fires both "visibility hidden" and "blur": count it once.
-  const now = Date.now();
-  if (now - lastFocusSignalAt < FOCUS_DEBOUNCE_MS) return;
-  lastFocusSignalAt = now;
-  sendSignal('FOCUS_LOSS');
+// Keep a signal on the phone first, then try to send it.
+function queueSignal(eventType, questionId, awayMs = null) {
+  const pending = readSignals();
+  pending.push({ rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId, eventType, awayMs });
+  safeSet(signalsKey(), JSON.stringify(pending));
+  flushSignals();
+}
+
+// Send every stored signal; keep the ones that couldn't reach the server (offline) for next time.
+async function flushSignals() {
+  if (!identity || flushingSignals) return;
+  flushingSignals = true;
+  try {
+    const url = `/api/sessions/${encodeURIComponent(identity.sessionId)}/integrity`;
+    const batch = readSignals();
+    const unsent = [];
+    for (const signal of batch) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signal),
+        keepalive: true,
+      }).catch(() => null);
+      if (!response) unsent.push(signal); // no network: any reply (even a refusal) means it's done
+    }
+    // Signals queued while we were sending were appended after the batch; keep them too.
+    safeSet(signalsKey(), JSON.stringify(unsent.concat(readSignals().slice(batch.length))));
+  } finally {
+    flushingSignals = false;
+  }
+}
+
+// The page is visible again (or was reopened): report how long it was hidden.
+function reportReturn() {
+  const saved = safeGet(HIDDEN_KEY);
+  if (!saved || !identity) return;
+  try {
+    localStorage.removeItem(HIDDEN_KEY);
+  } catch {
+    // Storage blocked: nothing was saved either, so there is nothing to report.
+  }
+  try {
+    const hidden = JSON.parse(saved);
+    queueSignal('FOCUS_LOSS', hidden.questionId, Math.max(0, Date.now() - hidden.at));
+  } catch {
+    // Unreadable entry: drop it.
+  }
+}
+
+// Ask the browser to keep the screen on while a question is open (needs HTTPS; skipped on plain http).
+async function keepScreenAwake() {
+  if (!('wakeLock' in navigator) || !questionIsOpen() || wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch {
+    wakeLock = null;
+  }
+}
+
+// Question over: let the screen sleep normally again.
+function letScreenSleep() {
+  wakeLock?.release().catch(() => {});
+  wakeLock = null;
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') focusLost();
+  if (document.visibilityState === 'hidden') {
+    // Remember when the page left the screen; the time away is reported on return.
+    if (questionIsOpen() && !safeGet(HIDDEN_KEY)) {
+      safeSet(HIDDEN_KEY, JSON.stringify({ questionId: currentQuestion.id, at: Date.now() }));
+    }
+  } else {
+    reportReturn();
+    keepScreenAwake(); // browsers drop the wake lock whenever the page is hidden
+  }
 });
-window.addEventListener('blur', focusLost);
-$('typed').addEventListener('paste', () => sendSignal('PASTE'));
+$('typed').addEventListener('paste', () => {
+  if (questionIsOpen()) queueSignal('PASTE', currentQuestion.id);
+});
 
 $('fullscreen').addEventListener('click', () => {
   document.documentElement.requestFullscreen?.().then(() => { enteredFullscreen = true; }).catch(() => {});
@@ -382,7 +458,7 @@ $('fullscreen').addEventListener('click', () => {
 document.addEventListener('fullscreenchange', () => {
   if (enteredFullscreen && !document.fullscreenElement) {
     enteredFullscreen = false;
-    sendSignal('FULLSCREEN_EXIT');
+    if (questionIsOpen()) queueSignal('FULLSCREEN_EXIT', currentQuestion.id);
   }
 });
 // iPhones don't support fullscreen for web pages; hide the button where it can't work.

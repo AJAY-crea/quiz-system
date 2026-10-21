@@ -9,6 +9,7 @@ import com.teamam.quiz.repository.ParticipantRepository;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
 import com.teamam.quiz.timing.TimingService;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class IntegrityService {
 
     public static final int MAX_EVENTS_PER_STUDENT_QUESTION = 50;
+
+    /**
+     * A "left the page" report is sent when the student comes BACK (that's when the time away is
+     * known), or later if the phone was offline, so reports may arrive a little after the deadline.
+     */
+    public static final Duration LATE_REPORT_WINDOW = Duration.ofMinutes(2);
+
+    /** Longer than any sensible lecture question; caps a phone-reported away time. */
+    private static final long MAX_AWAY_MS = Duration.ofHours(1).toMillis();
 
     private final QuizSessionRepository sessionRepository;
     private final ParticipantRepository participantRepository;
@@ -45,7 +55,7 @@ public class IntegrityService {
         this.timingService = timingService;
     }
 
-    /** Stores one signal if it's from the right phone, for an open question, under the cap. */
+    /** Stores one signal if it's from the right phone, for a released question (up to 2 min after its deadline), under the cap. */
     @Transactional
     public IntegrityOutcome record(Long sessionId, IntegrityReport report) {
         Instant arrivedAt = Instant.now();
@@ -63,7 +73,7 @@ public class IntegrityService {
         if (question.isEmpty()
                 || !question.get().getSession().getId().equals(sessionId)
                 || question.get().getReleasedAt() == null
-                || !timingService.isOnTime(report.questionId(), arrivedAt)) {
+                || arrivedAt.isAfter(timingService.deadlineFor(report.questionId()).plus(LATE_REPORT_WINDOW))) {
             return IntegrityOutcome.REJECTED;
         }
         long alreadyStored =
@@ -71,7 +81,9 @@ public class IntegrityService {
         if (alreadyStored >= MAX_EVENTS_PER_STUDENT_QUESTION) {
             return IntegrityOutcome.CAPPED;
         }
-        eventRepository.save(new IntegrityEvent(session.get(), question.get(), report.rollNo(), report.eventType()));
+        Long awayMs = report.awayMs() == null || report.awayMs() < 0 ? null : Math.min(report.awayMs(), MAX_AWAY_MS);
+        eventRepository.save(
+                new IntegrityEvent(session.get(), question.get(), report.rollNo(), report.eventType(), awayMs));
         return IntegrityOutcome.RECORDED;
     }
 
@@ -80,7 +92,8 @@ public class IntegrityService {
     public List<IntegritySummaryRow> summary(Long sessionId) {
         return eventRepository.summarise(sessionId).stream()
                 .map(row -> new IntegritySummaryRow(
-                        (String) row[0], (Integer) row[1], row[2].toString(), (Long) row[3]))
+                        (String) row[0], (Integer) row[1], row[2].toString(), (Long) row[3],
+                        Math.round(((Number) row[4]).doubleValue() / 1000)))
                 .toList();
     }
 }
