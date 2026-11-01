@@ -17,6 +17,8 @@ public interface IntegrityEventRepository extends JpaRepository<IntegrityEvent, 
 
     long countBySessionIdAndRollNo(Long sessionId, String rollNo);
 
+    void deleteBySessionId(Long sessionId);
+
     /** Rows of [rollNo, question orderIndex, eventType, count, total awayMs] for the instructor's review list. */
     @Query("select e.rollNo, e.question.orderIndex, e.eventType, count(e), coalesce(sum(e.awayMs), 0)"
             + " from IntegrityEvent e"

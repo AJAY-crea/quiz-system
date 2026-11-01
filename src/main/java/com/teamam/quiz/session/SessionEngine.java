@@ -5,6 +5,7 @@ import com.teamam.quiz.domain.QuizSession;
 import com.teamam.quiz.domain.SessionStatus;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
+import com.teamam.quiz.timing.TimingService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.NoSuchElementException;
@@ -19,14 +20,17 @@ public class SessionEngine {
     private final QuizSessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final TimingService timingService;
 
     public SessionEngine(
             QuizSessionRepository sessionRepository,
             QuestionRepository questionRepository,
-            SimpMessagingTemplate messagingTemplate) {
+            SimpMessagingTemplate messagingTemplate,
+            TimingService timingService) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.messagingTemplate = messagingTemplate;
+        this.timingService = timingService;
     }
 
     /** Creates a new session (one lecture's quiz). */
@@ -70,6 +74,27 @@ public class SessionEngine {
 
         announce(sessionId, new SessionEvent(SessionEvent.RELEASED, question.getId()));
         return question;
+    }
+
+    /**
+     * Ends the lecture: phones show "the quiz has ended". Refused while a question is open, so nobody
+     * is cut off mid-answer. Releasing another question later simply makes the session RUNNING again.
+     */
+    @Transactional
+    public void end(Long sessionId) {
+        QuizSession session = requireSession(sessionId);
+        if (session.getCurrentQuestionOrder() > 0) {
+            Question current = questionRepository
+                    .findBySessionIdAndOrderIndex(sessionId, session.getCurrentQuestionOrder())
+                    .orElseThrow(() -> new IllegalStateException("current question missing for session " + sessionId));
+            if (Instant.now().isBefore(timingService.deadlineFor(current.getId()))) {
+                throw new IllegalStateException(
+                        "Question " + current.getOrderIndex() + " is still open. Close it first, or wait for its time to end.");
+            }
+        }
+        session.setStatus(SessionStatus.ENDED);
+        sessionRepository.save(session);
+        announce(sessionId, new SessionEvent(SessionEvent.ENDED, null));
     }
 
     /** Tells every connected browser to refetch its state (e.g. after a deadline extension). */

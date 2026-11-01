@@ -778,3 +778,32 @@ tables matched on the first run.
 > Phones poll this, so not every second. Do NOT render doubt text as HTML.
 
 **Result:** `keepsAuthorsHiddenAndCountsUpvoteOnce` and 3 further tests pass; see the commit.
+
+### Generated prompt E — Mukesh: never lose what a student wrote; instructor controls
+(chain-of-thought over failure paths, negative prompting)
+> Act as a student halfway through a long typed answer in a bad classroom network. List every event
+> that redraws the answer form (+30 s, reconnect, reload, any broadcast), and what happens to the text
+> each time. Then fix it: redrawing must never wipe the form, and the draft survives a reload, kept
+> on the phone like unsent answers. Selected MCQ options too.
+> A student who has written or chosen something but not pressed Submit when time ends must not get
+> nothing: send it automatically, early enough to arrive on time, and say so. Stop the box at the
+> server's limit, with a counter, instead of refusing the answer after the form has gone.
+> Add instructor controls: close a question early (with 5 s notice so phones can send drafts) and end
+> the session (refused while a question is open; releasing again reopens). Do not add new deadline
+> logic: closing must flow through the same deadline so restart recovery still works.
+> Design doc risk 3 promises the instructor can disable or clear integrity signals: build that.
+> Every new instructor action must refuse a phone, with a test.
+
+**Result:** tests pass (new: `closeSoonMovesTheDeadlineToAFewSecondsFromNow`,
+`endIsRefusedWhileAQuestionIsOpenAndReleasingReopens`, `instructorCanStopRecordingAndClearSignals`,
+`sessionControlAndIntegritySettingsRefuseLanAddresses`). Browser check with 6 scripted phones:
+- **The bug was real.** Serving the previous `student.js` to one phone, +30 s emptied its box while it
+  held a half-written answer. The new page kept the text, and a reload restored it.
+- A draft left unsubmitted was sent automatically, both on "close now" and at a natural deadline, and
+  arrived on time.
+
+**Unexplained result (honest):** one run of the browser script scored 23/26, right after a stuck test
+browser had been force-killed. The output had been cut off, so which 3 checks failed was not recorded.
+The next 4 runs were all 26/26. The suspected cause is the script's fixed 800 ms wait, which was then
+replaced by waiting for the question to appear (it appeared in about 60 ms), but this is not proven.
+In the code, a phone connecting late still asks the server for the current question on connect.

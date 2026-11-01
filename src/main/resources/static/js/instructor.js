@@ -104,6 +104,7 @@ async function refresh() {
   renderQuestions(dashboard.questions);
   renderReviewPicker(dashboard.questions);
   $('marks-visible').checked = dashboard.session.marksVisible;
+  $('integrity-enabled').checked = dashboard.session.integrityEnabled;
   $('download-xlsx').href = `/api/sessions/${sessionId}/export.xlsx`;
   $('download-csv').href = `/api/sessions/${sessionId}/export.csv`;
   try {
@@ -220,6 +221,9 @@ function renderQuestions(questions) {
   }
   $('release-next').disabled = !questions.some((q) => !q.released);
   $('extend').disabled = !current;
+  $('close-question').disabled = !current || current.remainingMs <= 5000;
+  $('end-session').disabled = dashboard.session.status === 'ENDED';
+  $('end-session').textContent = dashboard.session.status === 'ENDED' ? 'Session ended' : 'End session';
 }
 
 // ---------- marking typed answers ----------
@@ -546,6 +550,31 @@ $('extend').addEventListener('click', () => run(async () => {
   await api('POST', `/api/sessions/${sessionId}/questions/${current.id}/extend?seconds=30`);
   say(`Question ${current.orderIndex} extended by 30 s.`);
 }));
+
+$('close-question').addEventListener('click', () => run(async () => {
+  const current = dashboard.questions.find((q) => q.remainingMs !== null);
+  await api('POST', `/api/sessions/${sessionId}/questions/${current.id}/close`);
+  say(`Question ${current.orderIndex} closes in 5 seconds; what students have written is sent automatically.`);
+}));
+
+$('end-session').addEventListener('click', () => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/end`);
+  say('Session ended. Marking and the score sheet still work. Releasing another question reopens it.');
+}));
+
+$('integrity-enabled').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/integrity-settings?enabled=${e.target.checked}`);
+  say(e.target.checked ? 'Recording integrity signals.' : 'Integrity signals are no longer recorded.');
+}));
+
+$('integrity-clear').addEventListener('click', () => {
+  if (!window.confirm('Delete all integrity signals for this session?')) return;
+  run(async () => {
+    await api('DELETE', `/api/sessions/${sessionId}/integrity`);
+    await renderIntegrity();
+    say('Integrity signals cleared.');
+  });
+});
 
 $('refresh-attendance').addEventListener('click', () => renderAttendance().catch((e) => say(e.message, true)));
 

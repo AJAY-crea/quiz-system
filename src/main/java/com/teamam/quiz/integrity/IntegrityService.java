@@ -12,6 +12,7 @@ import com.teamam.quiz.timing.TimingService;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class IntegrityService {
         }
         Optional<QuizSession> session = sessionRepository.findById(sessionId);
         Optional<Participant> participant = participantRepository.findBySessionIdAndRollNo(sessionId, report.rollNo());
-        if (session.isEmpty() || participant.isEmpty()
+        if (session.isEmpty() || !session.get().isIntegrityEnabled() || participant.isEmpty()
                 || !participant.get().getDeviceToken().equals(report.deviceToken())) {
             return IntegrityOutcome.REJECTED;
         }
@@ -85,6 +86,22 @@ public class IntegrityService {
         eventRepository.save(
                 new IntegrityEvent(session.get(), question.get(), report.rollNo(), report.eventType(), awayMs));
         return IntegrityOutcome.RECORDED;
+    }
+
+    /** Instructor turns recording on or off (design doc risk #3: if signals prove too noisy). */
+    @Transactional
+    public void setEnabled(Long sessionId, boolean enabled) {
+        QuizSession session = sessionRepository
+                .findById(sessionId)
+                .orElseThrow(() -> new NoSuchElementException("session not found: " + sessionId));
+        session.setIntegrityEnabled(enabled);
+        sessionRepository.save(session);
+    }
+
+    /** Instructor wipes this session's signals (design doc risk #3). */
+    @Transactional
+    public void clear(Long sessionId) {
+        eventRepository.deleteBySessionId(sessionId);
     }
 
     /** Counts per student, question and signal type, for the dashboard. */

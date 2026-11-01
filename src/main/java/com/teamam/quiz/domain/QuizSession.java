@@ -52,6 +52,7 @@ public class QuizSession {
     private Boolean doubtAuthorsVisible;
     private Boolean marksVisibleToStudents;
     private Boolean doubtsShared;
+    private Boolean integrityEnabled;
 
     protected QuizSession() {
     }
@@ -124,6 +125,15 @@ public class QuizSession {
 
     public void setDoubtAuthorsVisible(boolean visible) {
         this.doubtAuthorsVisible = visible;
+    }
+
+    /** On by default; the instructor can stop recording integrity signals (design doc risk #3). */
+    public boolean isIntegrityEnabled() {
+        return integrityEnabled == null || integrityEnabled;
+    }
+
+    public void setIntegrityEnabled(boolean enabled) {
+        this.integrityEnabled = enabled;
     }
 
     /** On by default: students see open doubts (never who asked) and can upvote them. She can switch this off. */

@@ -68,6 +68,26 @@ class IntegrityServiceTest {
                 .orElseThrow().getCorrect()).isTrue();
     }
 
+    // Guards against: having no way out if signals prove too noisy (design doc risk #3).
+    @Test
+    void instructorCanStopRecordingAndClearSignals() {
+        String rollNo = "CS23B904";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+        IntegrityReport report = new IntegrityReport(
+                rollNo, TestQuiz.deviceOf(rollNo), quiz.questionId, IntegrityEventType.FOCUS_LOSS);
+        assertThat(integrity.record(quiz.sessionId, report)).isEqualTo(IntegrityOutcome.RECORDED);
+
+        integrity.clear(quiz.sessionId);
+        assertThat(integrity.summary(quiz.sessionId)).isEmpty();
+
+        integrity.setEnabled(quiz.sessionId, false);
+        assertThat(integrity.record(quiz.sessionId, report)).isEqualTo(IntegrityOutcome.REJECTED);
+        assertThat(integrity.summary(quiz.sessionId)).isEmpty();
+
+        integrity.setEnabled(quiz.sessionId, true);
+        assertThat(integrity.record(quiz.sessionId, report)).isEqualTo(IntegrityOutcome.RECORDED);
+    }
+
     // Guards against: one student's phone filing signals against another student's roll number.
     @Test
     void rejectsReportFromAnotherDevice() {

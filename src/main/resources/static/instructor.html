@@ -150,6 +150,8 @@
       <div class="row">
         <button id="release-next">Release next question</button>
         <button id="extend" class="secondary">+30 s to open question</button>
+        <button id="close-question" class="secondary">Close question now (5 s notice)</button>
+        <button id="end-session" class="secondary">End session</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -174,6 +176,10 @@
       <h2>Integrity signals <span class="muted">(advisory, not penalties)</span></h2>
       <p class="muted">Counts of leaving the page, exiting full screen, or pasting while a question was open.
         Phones also do this for innocent reasons: a screen lock or an incoming call.</p>
+      <div class="row">
+        <label class="muted"><input type="checkbox" id="integrity-enabled"> Record signals</label>
+        <button id="integrity-clear" class="secondary">Clear signals</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Roll number</th><th>Q</th><th>Signal</th><th>Times · time away</th></tr></thead>

@@ -18,6 +18,7 @@ public class TimingService {
 
     public static final Duration GRACE_WINDOW = Duration.ofMillis(300);
     public static final int MAX_EXTENSION_SECONDS = 600;
+    public static final Duration CLOSE_NOTICE = Duration.ofSeconds(5);
 
     private final QuestionRepository questionRepository;
 
@@ -48,6 +49,29 @@ public class TimingService {
             throw new IllegalStateException("cannot extend question " + questionId + " before it is released");
         }
         question.setExtensionSeconds(question.getExtensionSeconds() + seconds);
+        questionRepository.save(question);
+        return deadlineOf(question);
+    }
+
+    /**
+     * Instructor action: everyone has answered, so end the question early. It closes a few seconds
+     * from now, not at once, so phones can still send what students have typed. Stored as a negative
+     * extension, so restart recovery and on-time checks need no special case.
+     */
+    @Transactional
+    public Instant closeSoon(Long questionId) {
+        Question question = requireQuestion(questionId);
+        Instant now = Instant.now();
+        if (question.getReleasedAt() == null) {
+            throw new IllegalStateException("cannot close question " + questionId + " before it is released");
+        }
+        Instant target = now.plus(CLOSE_NOTICE);
+        // The extra second: deadlines are whole seconds from release, so a repeat press must not count as "later".
+        if (!deadlineOf(question).isAfter(target.plusSeconds(1))) {
+            throw new IllegalStateException("question " + question.getOrderIndex() + " is already closing or closed");
+        }
+        long secondsFromRelease = Duration.between(question.getReleasedAt(), target).toSeconds() + 1;
+        question.setExtensionSeconds((int) secondsFromRelease - question.getDurationSeconds());
         questionRepository.save(question);
         return deadlineOf(question);
     }

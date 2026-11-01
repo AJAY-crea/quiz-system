@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Web endpoints for sessions: create, release, extend (instructor) and state (phones). */
+/** Web endpoints for sessions: create, release, extend, close, end (instructor) and state (phones). */
 @RestController
 @RequestMapping("/api/sessions")
 public class SessionController {
@@ -52,6 +52,21 @@ public class SessionController {
         Instant deadline = timingService.extendDeadline(questionId, seconds);
         sessionEngine.announce(sessionId, new SessionEvent(SessionEvent.EXTENDED, questionId));
         return ResponseEntity.ok(Map.of("questionId", questionId, "deadline", deadline.toString()));
+    }
+
+    /** Instructor closes the open question early, with a few seconds' notice; phones refresh their timer. */
+    @PostMapping("/{sessionId}/questions/{questionId}/close")
+    public ResponseEntity<Map<String, Object>> close(@PathVariable Long sessionId, @PathVariable Long questionId) {
+        Instant deadline = timingService.closeSoon(questionId);
+        sessionEngine.announce(sessionId, new SessionEvent(SessionEvent.CLOSING, questionId));
+        return ResponseEntity.ok(Map.of("questionId", questionId, "deadline", deadline.toString()));
+    }
+
+    /** Instructor ends the session. */
+    @PostMapping("/{sessionId}/end")
+    public ResponseEntity<Map<String, String>> end(@PathVariable Long sessionId) {
+        sessionEngine.end(sessionId);
+        return ResponseEntity.ok(Map.of("status", "ended"));
     }
 
     /** Phone asks "what should I show now?" after joining, reconnecting or a broadcast. */

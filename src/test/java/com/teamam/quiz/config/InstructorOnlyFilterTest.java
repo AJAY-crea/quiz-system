@@ -1,5 +1,6 @@
 package com.teamam.quiz.config;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +70,19 @@ class InstructorOnlyFilterTest {
         mockMvc.perform(post("/api/sessions/1/doubts/1/dismiss").with(FROM_A_STUDENT_PHONE))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/sessions/1/integrity").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+    }
+
+    // Guards against: a student closing a question, ending the lecture, or hiding integrity signals.
+    @Test
+    void sessionControlAndIntegritySettingsRefuseLanAddresses() throws Exception {
+        mockMvc.perform(post("/api/sessions/1/questions/1/close").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/end").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/integrity-settings").param("enabled", "false").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/sessions/1/integrity").with(FROM_A_STUDENT_PHONE))
                 .andExpect(status().isForbidden());
     }
 

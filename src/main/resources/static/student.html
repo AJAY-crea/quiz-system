@@ -52,6 +52,7 @@
       border-radius: 8px; cursor: pointer;
     }
     .status { margin-top: 12px; font-weight: 600; }
+    .typed-count { text-align: right; margin: 2px 0 8px; font-size: 13px; }
     .card-title { font-size: 16px; margin: 16px 0 8px; }
     #my-marks .card-title { margin-top: 0; }
     .doubt-queue { list-style: none; margin: 0; padding: 0; }
@@ -98,7 +99,8 @@
         <p id="question-text" class="question-text"></p>
         <form id="answer-form">
           <div id="options"></div>
-          <textarea id="typed" hidden placeholder="Type your answer"></textarea>
+          <textarea id="typed" hidden maxlength="4000" placeholder="Type your answer"></textarea>
+          <p id="typed-count" class="hint typed-count" hidden></p>
           <button type="submit">Submit answer</button>
         </form>
         <p id="answer-status" class="status"></p>

@@ -4,6 +4,7 @@ import { AnswerBuffer, randomId } from './answer-buffer.js';
 const RESEND_INTERVAL_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 10000;
 const DOUBT_QUEUE_INTERVAL_MS = 10000; // a whole class polls this, so not every second
+const AUTO_SUBMIT_MS = 1500; // send an unsubmitted answer this long before time is up
 
 const $ = (id) => document.getElementById(id);
 
@@ -259,6 +260,12 @@ function render(state) {
   currentQuestion = state.currentQuestion;
   clearInterval(countdownTimer);
 
+  if (state.status === 'ENDED') {
+    letScreenSleep();
+    renderedFormFor = null;
+    showMessage('The quiz has ended. Thank you!');
+    return;
+  }
   if (!currentQuestion) {
     letScreenSleep();
     showMessage('Waiting for the instructor to release the first question…');
@@ -281,16 +288,52 @@ function render(state) {
   renderAnswerForm();
 }
 
-// Draw the options (in this student's order) or the typed-answer box.
+// Which question the form on screen belongs to. A refresh (+30 s, a reconnect, marks published) can
+// arrive while a student is mid-sentence, and redrawing the form must never wipe what they've written.
+let renderedFormFor = null;
+let autoSubmittedFor = null;
+
+// Where the unsubmitted answer is kept on the phone, so even a page reload or dead battery loses nothing.
+function draftKey() {
+  return `quiz:${identity.sessionId}:${identity.rollNo}:draft`;
+}
+
+// The saved draft for this question, or an empty one.
+function readDraft(questionId) {
+  try {
+    const draft = JSON.parse(safeGet(draftKey()));
+    return draft?.questionId === questionId ? draft : { questionId };
+  } catch {
+    return { questionId };
+  }
+}
+
+// Save what's on the form right now.
+function saveDraft() {
+  const chosen = document.querySelector('input[name="choice"]:checked');
+  safeSet(draftKey(), JSON.stringify({
+    questionId: currentQuestion.id,
+    typed: $('typed').value,
+    chosen: chosen ? Number(chosen.value) : null,
+  }));
+}
+
+// Draw the options (in this student's order) or the typed-answer box, restoring any draft.
 function renderAnswerForm() {
   const form = $('answer-form');
+  if (renderedFormFor === currentQuestion.id && !form.hidden) return;
+  renderedFormFor = currentQuestion.id;
+
   const options = $('options');
+  const draft = readDraft(currentQuestion.id);
   options.replaceChildren();
   form.hidden = false;
   $('answer-status').textContent = '';
 
   if (currentQuestion.type === 'MCQ') {
     $('typed').hidden = true;
+    $('typed-count').hidden = true;
+    $('typed').value = '';
     currentQuestion.options.forEach((text, index) => {
       const label = document.createElement('label');
       label.className = 'option';
@@ -298,34 +341,65 @@ function renderAnswerForm() {
       radio.type = 'radio';
       radio.name = 'choice';
       radio.value = String(index);
+      radio.checked = draft.chosen === index;
+      radio.addEventListener('change', saveDraft);
       label.append(radio, document.createTextNode(' ' + text));
       options.append(label);
     });
   } else {
     $('typed').hidden = false;
-    $('typed').value = '';
+    $('typed-count').hidden = false;
+    $('typed').value = draft.typed ?? '';
+    showTypedCount();
   }
 }
+
+// How much of the limit is used; the box stops at the limit, so the server never refuses a long answer.
+function showTypedCount() {
+  $('typed-count').textContent = `${$('typed').value.length} / ${$('typed').maxLength}`;
+}
+
+$('typed').addEventListener('input', () => {
+  saveDraft();
+  showTypedCount();
+});
 
 // Submit: store the answer on the phone first, then send it.
 function submitAnswer(event) {
   event.preventDefault();
+  sendCurrentAnswer();
+}
+
+// Sends what's on the form, if anything. Returns whether it sent.
+function sendCurrentAnswer() {
   const answer = { rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId: currentQuestion.id };
 
   if (currentQuestion.type === 'MCQ') {
     const chosen = document.querySelector('input[name="choice"]:checked');
-    if (!chosen) return;
+    if (!chosen) return false;
     answer.chosenIndex = Number(chosen.value);
   } else {
     const typed = $('typed').value.trim();
-    if (!typed) return;
+    if (!typed) return false;
     answer.typedAnswer = typed;
   }
 
   const entry = buffer.add(answer);
   $('answer-form').hidden = true;
+  renderedFormFor = null;
   showAnswerStatus(entry);
   resendPending();
+  return true;
+}
+
+// Time is nearly up and the answer is written but not submitted: send it, so the student doesn't get
+// nothing for forgetting to press the button. Early enough to arrive before the deadline.
+function submitIfTimeIsEnding() {
+  if ($('question').hidden || $('answer-form').hidden || !currentQuestion) return;
+  if (sendCurrentAnswer()) {
+    autoSubmittedFor = currentQuestion.id;
+    showAnswerStatus(buffer.get(currentQuestion.id));
+  }
 }
 
 // Turn the server's reply into a message: saved / late / first answer stands / not accepted.
@@ -337,7 +411,8 @@ function showAnswerStatus(entry) {
   }
   const ack = entry.ack;
   if (ack.outcome === 'ACCEPTED') {
-    status.textContent = ack.onTime ? 'Answer saved ✓' : 'Saved, but after the deadline — it is marked late.';
+    const saved = autoSubmittedFor === currentQuestion?.id ? 'Time ran out, so your answer was sent for you ✓' : 'Answer saved ✓';
+    status.textContent = ack.onTime ? saved : 'Saved, but after the deadline — it is marked late.';
   } else if (ack.outcome === 'DUPLICATE') {
     status.textContent = ack.sameSubmission ? 'Answer saved ✓' : 'You had already answered this question; your first answer stands.';
   } else {
@@ -351,8 +426,10 @@ function startCountdown(remainingMs) {
   const endsAt = performance.now() + remainingMs;
   questionClosesAt = Date.now() + remainingMs;
   const tick = () => {
-    const secondsLeft = Math.max(0, Math.ceil((endsAt - performance.now()) / 1000));
+    const msLeft = endsAt - performance.now();
+    const secondsLeft = Math.max(0, Math.ceil(msLeft / 1000));
     $('countdown').textContent = secondsLeft > 0 ? `${secondsLeft}s left` : 'Time is up';
+    if (msLeft > 0 && msLeft <= AUTO_SUBMIT_MS) submitIfTimeIsEnding();
     if (secondsLeft === 0) letScreenSleep();
   };
   tick();
