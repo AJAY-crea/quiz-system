@@ -64,7 +64,12 @@ public class MyMarksService {
         double total = 0;
         int outOf = 0;
         for (Question q : questionRepository.findBySessionIdOrderByOrderIndex(sessionId)) {
-            if (q.getReleasedAt() == null || now.isBefore(timingService.deadlineFor(q.getId()))) {
+            if (q.getReleasedAt() == null) {
+                continue;
+            }
+            // Phones only show the current question, so an earlier one is over even if its timer hasn't run out.
+            boolean current = q.getOrderIndex() == session.getCurrentQuestionOrder();
+            if (current && now.isBefore(timingService.deadlineFor(q.getId()))) {
                 continue;
             }
             Response r = responseRepository.findBySessionIdAndQuestionIdAndRollNo(sessionId, q.getId(), rollNo).orElse(null);

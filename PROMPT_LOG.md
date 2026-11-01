@@ -807,3 +807,12 @@ browser had been force-killed. The output had been cut off, so which 3 checks fa
 The next 4 runs were all 26/26. The suspected cause is the script's fixed 800 ms wait, which was then
 replaced by waiting for the question to appear (it appeared in about 60 ms), but this is not proven.
 In the code, a phone connecting late still asks the server for the current question on connect.
+
+### Found by looking at the browser screenshots (Ajay)
+The scripted checks all passed; these only showed up by reading the images, the same lesson as Week 4.
+- A student's marks left out a question the instructor had moved on from until its timer ran out, so
+  the total looked wrong. An earlier question now counts as closed (test first).
+- The CSV format hint and the address picker overflowed their cards.
+- Discrimination on an MCQ is ranked on marks so far, so it shifts while typed answers are unmarked,
+  and rests on one student per group in a class of 5. The dashboard now says both, instead of
+  showing "1.00" as if it were solid.

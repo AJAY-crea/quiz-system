@@ -26,6 +26,8 @@
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
     .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
     input, select, textarea, button { font: inherit; color: var(--text); }
+    select { max-width: 100%; }
+    code { overflow-wrap: anywhere; }
     input, select, textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-width: 0; }
     textarea { width: 100%; min-height: 70px; resize: vertical; }
     button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
@@ -214,7 +216,8 @@
       </div>
       <p class="muted">Discrimination: the top 27% of students' average on the question minus the bottom 27%'s.
         Near 1 separates them well, near 0 doesn't, negative usually means a wrong answer key.
-        Don't project this during a question: it shows the answers.</p>
+        Students are ranked on the marks given so far, so finish marking typed answers before relying on it.
+        With a small class, one student can swing it a lot. Don't project this during a question: it shows the answers.</p>
       <div id="analytics" class="review-list"></div>
       <div id="semester-wrap" class="table-wrap" hidden>
         <h3>All sessions</h3>

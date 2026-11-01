@@ -92,6 +92,24 @@ class MyMarksServiceTest {
         assertThat(result.outOf()).isEqualTo(1 + 5 + 5);
     }
 
+    // Guards against: a question the instructor moved on from vanishing from a student's marks until
+    // its timer ran out (found in a browser run: Total looked wrong).
+    @Test
+    void questionMovedOnFromCountsAsClosedEvenWithTimeLeft() {
+        String roll = "CS23B503";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 600, roll);
+        QuizSession session = sessions.findById(quiz.sessionId).orElseThrow();
+        answer(session, questions.findById(quiz.questionId).orElseThrow(), roll, true, null);
+        Question next = bank.add(quiz.sessionId, 2, QuestionType.TYPED, "next", null, null, 600, 5);
+        engine.release(quiz.sessionId, next.getId());
+        myMarks.setPublished(quiz.sessionId, true);
+
+        MyMarks result = myMarks.forStudent(quiz.sessionId, roll, TestQuiz.deviceOf(roll));
+
+        assertThat(result.rows()).extracting(MyMarks.Row::orderIndex).containsExactly(1);
+        assertThat(result.total()).isEqualTo(1.0);
+    }
+
     /** A released typed question worth 5 marks whose time is already over. */
     private Question closedTyped(Long sessionId, int order) {
         Question q = bank.add(sessionId, order, QuestionType.TYPED, "Q" + order, null, null, 0, 5);
