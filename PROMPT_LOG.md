@@ -845,3 +845,11 @@ and database only. Design doc Plan B (reduced, honestly reported device count) s
 
 **AI issue:** the first draft called a Java method that does not exist
 (`Thread.startVirtualThreadOrPlatform`), a hallucination. Spotted on review before compiling.
+
+### Final check, and what is still open
+83/83 tests. Browser script with 6 scripted phones and the dashboard: 26/26, with no JavaScript errors, and
+the downloaded .xlsx has all four sheets. A roster-sized check of the design doc's §3 table: every test it
+names now exists.
+
+**Not done, because it needs real people:** the integrity calibration run, the stakeholder dry-run, and a
+test with real phones on a real network. "Phones" above are separate browser profiles on one laptop.

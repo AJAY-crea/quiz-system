@@ -23,21 +23,41 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
 
 1. On the instructor's laptop, open **http://localhost:8080/instructor.html**. This page and all
    instructor actions only work from the laptop itself.
-2. Create a session, upload the roster CSV, and add questions.
+2. Create a session, upload the roster CSV, and add questions one at a time or as a CSV
+   (`type,seconds,marks,question,correct,option1,option2,…`; `correct` counts from 1):
+   ```
+   MCQ,60,1,"Capital of India?",2,Mumbai,Delhi,Chennai
+   TYPED,120,5,"Explain Ohm's law"
+   ```
+   An unreleased question can be removed.
 3. Pick the laptop's classroom Wi-Fi address (laptops list VPN/VirtualBox adapters too), then
    **Open joining** for e.g. 60 s. Students scan the QR with their phone camera. The code changes
    every 15 s, so a forwarded photo stops working; the session number and code under the QR are a
    typed fallback.
-4. **Release next question**, and use **+30 s** if needed. Answers arrive live.
-5. **Refresh attendance**: present = answered at least 50% of released questions (late answers
+4. **Release next question**. Use **+30 s** to give more time, **Close question now** if everyone has
+   answered (5 s notice), and **End session** at the end. Answers arrive live. What a student has
+   written is kept on their phone through reconnects and reloads, and is sent automatically just
+   before time ends if they haven't pressed Submit. The first answer sent is final.
+5. **Mark typed answers** (during or after the lecture): identical answers are grouped, so you mark
+   each wording once, and you can give one student a different mark. Roll numbers stay hidden unless you
+   tick the box. Late answers score 0 and can't be marked.
+6. **Results by question**: % correct, how many chose each option, and the discrimination index, with
+   warnings such as "check the answer key". **Change correct answer** re-scores everyone. **Compare all
+   sessions** shows the semester so far. Don't project this during a question: it shows the answers.
+7. **Refresh attendance**: present = answered at least 50% of released questions (late answers
    count). Flags such as "device was already used by …" are for review, never penalties.
-6. **Download score sheet (.xlsx)**: one row per rostered student in roll-number order, absentees
-   included. A CSV copy is there as a fallback.
-7. **Doubts** appear live, tagged with the question that was open. They're anonymous unless you
-   tick "Show who asked", and you can dismiss them or turn the channel off.
-8. **Integrity signals** list how often, and for how many seconds, a student left the page (or the
-   screen went off), exited full screen, or pasted while a question was open, answered or not.
-   Treat them as prompts to look, not proof: a page can't tell "switched app" from "screen off".
+8. **Download score sheet (.xlsx)**: one row per rostered student in roll-number order, absentees
+   included, plus "Question analysis" and "Typed answers" sheets. Unmarked typed answers show "review"
+   and aren't in Total yet. A CSV of the scores is there as a fallback.
+9. **Show students their own marks** publishes marks to each student's phone: their own only, with
+   no answer key and nothing about a question still open.
+10. **Doubts** appear live, tagged with the question that was open, most upvoted first. They're anonymous
+    unless you tick "Show who asked". Students see open doubts (never who asked) and can upvote each
+    once; you can stop this with "Students see and upvote doubts", dismiss a doubt, or turn the channel off.
+11. **Integrity signals** list how often, and for how many seconds, a student left the page (or the
+    screen went off), exited full screen, or pasted while a question was open, answered or not.
+    Treat them as prompts to look, not proof: a page can't tell "switched app" from "screen off". You can
+    stop recording or clear them.
 
 Students need nothing installed. On the same Wi-Fi (or the laptop's hotspot), no internet is needed:
 everything is served by the laptop.
@@ -71,9 +91,19 @@ Instructor (REST, localhost only):
 | Integrity summary | `GET /api/sessions/{sessionId}/integrity` |
 | Create session | `POST /api/sessions` `{"title": "..."}` |
 | Upload roster (CSV, one roll number per line, optional header/name column) | `POST /api/roster/{sessionId}/upload` (multipart `file`) |
-| Add question | `POST /api/sessions/{sessionId}/questions` `{"orderIndex":1,"type":"MCQ","text":"...","options":[...],"correctOptionIndex":2,"durationSeconds":60}` |
+| Add question | `POST /api/sessions/{sessionId}/questions` `{"orderIndex":1,"type":"MCQ","text":"...","options":[...],"correctOptionIndex":2,"durationSeconds":60,"maxMarks":1}` |
+| Upload questions (CSV) | `POST /api/sessions/{sessionId}/questions/upload` (multipart `file`) |
+| Remove an unreleased question | `DELETE /api/sessions/{sessionId}/questions/{questionId}` |
 | Release next question | `POST /api/sessions/{sessionId}/questions/{questionId}/release` |
-| Extend a released question | `POST /api/sessions/{sessionId}/questions/{questionId}/extend?seconds=N` |
+| Extend / close a released question | `POST /api/sessions/{sessionId}/questions/{questionId}/extend?seconds=N`, `.../close` |
+| End session | `POST /api/sessions/{sessionId}/end` |
+| Typed answers, grouped | `GET /api/sessions/{sessionId}/questions/{questionId}/review` |
+| Mark a group / one answer (`null` clears) | `POST .../questions/{questionId}/review/group` `{"key","marks"}`, `POST /api/sessions/{sessionId}/responses/{responseId}/marks` `{"marks"}` |
+| Publish marks to students | `POST /api/sessions/{sessionId}/marks-visibility?visible=` |
+| Analytics | `GET /api/sessions/{sessionId}/analytics`, `GET /api/analytics/semester` |
+| Fix an answer key and re-score | `POST /api/sessions/{sessionId}/questions/{questionId}/answer-key?correctOptionIndex=N` |
+| Share doubts with students | `POST /api/sessions/{sessionId}/doubts-settings?shared=` |
+| Integrity on/off, clear | `POST /api/sessions/{sessionId}/integrity-settings?enabled=`, `DELETE /api/sessions/{sessionId}/integrity` |
 
 Student:
 
@@ -82,7 +112,10 @@ Student:
 | Exchange scanned QR code for a 2-minute join ticket | `POST /api/sessions/{sessionId}/join-ticket?code=...` |
 | Join (roster-verified; ticket not needed to rejoin from the same phone) | `POST /api/roster/{sessionId}/join` `{"rollNo":"...","deviceToken":"...","ticket":"..."}` |
 | Current state (own option order, server-computed time left, already answered?) | `GET /api/sessions/{sessionId}/state?rollNo=...&deviceToken=...` |
+| Own marks (once published) | `GET /api/sessions/{sessionId}/my-marks?rollNo=...&deviceToken=...` |
 | Send a doubt | `POST /api/sessions/{sessionId}/doubts` `{"rollNo","deviceToken","text"}` |
+| Class's open doubts, without authors | `GET /api/sessions/{sessionId}/doubts/queue?rollNo=...&deviceToken=...` |
+| Upvote a doubt | `POST /api/sessions/{sessionId}/doubts/{doubtId}/upvote` `{"rollNo","deviceToken"}` |
 | Integrity signal (sent with `navigator.sendBeacon`) | `POST /api/sessions/{sessionId}/integrity` `{"rollNo","deviceToken","questionId","eventType"}` |
 | Submit answer (STOMP) | send to `/app/session/{sessionId}/answer`, ack on `/user/queue/answer-ack` |
 | Question released / deadline extended (STOMP broadcast) | subscribe `/topic/session/{sessionId}/question` |
@@ -108,6 +141,27 @@ STOMP endpoint: `/ws` (SockJS) or `/ws/websocket` (plain WebSocket, used by `stu
   question, dismiss, on/off).
 - **Week 4 (Ajay):** basic score-sheet export (.xlsx plus CSV fallback, protected against
   formula injection); the roster now keeps student names.
-- **Not built yet (after the mid-demo):** typed-answer review, doubt upvoting and queue,
-  per-question analytics, analytics columns in the export, the load-test harness, and an integrity
-  false-positive calibration run.
+- **Final milestone (Ajay):** typed-answer marking, per-question and semester analytics, answer-key
+  fix with re-scoring, full analytics export, question CSV upload, students' own marks.
+- **Final milestone (Mukesh):** doubt upvoting and queue, answer drafts and auto-submit, close question
+  and end session, integrity on/off and clear, load-test harness.
+- **Not done yet (needs real people):** the integrity false-positive calibration run, and the
+  stakeholder dry-run with real phones.
+
+## Load test
+
+Dev-only, not on the dashboard. It writes fake students, so it refuses any database that isn't a throwaway:
+
+```
+java -jar target\quiz-system-0.1.0-SNAPSHOT.jar --quiz.loadtest.clients=300 --server.port=8091 --spring.datasource.url=jdbc:h2:mem:load
+```
+
+Everything runs on one laptop, so this tests the server and database, not the classroom Wi-Fi.
+
+## Where this differs from the design doc
+
+- Doubts and integrity signals use REST rather than STOMP: they need no push, and a plain request
+  survives the page being hidden.
+- Question upload is `/api/sessions/{id}/questions/upload`, because a question belongs to a session.
+- Added beyond the design doc: marks per question, students' own marks, answer-key fix, close
+  question, end session, the switch that stops sharing doubts with students.
