@@ -16,6 +16,6 @@ public record DashboardView(
     /** remainingMs is set only for the question currently open (server-computed). */
     public record QuestionRow(
             Long id, int orderIndex, String type, String text, List<String> options, Integer correctOptionIndex,
-            int durationSeconds, boolean released, long answered, Long remainingMs) {
+            int durationSeconds, boolean released, long answered, Long remainingMs, int maxMarks, long awaitingMarks) {
     }
 }

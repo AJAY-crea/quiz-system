@@ -10,5 +10,6 @@ public record AddQuestionRequest(
         String text,
         List<String> options,
         Integer correctOptionIndex,
-        int durationSeconds) {
+        int durationSeconds,
+        Integer maxMarks) {
 }

@@ -78,6 +78,10 @@ function selectSession(id) {
   if (sessionId) localStorage.setItem('quiz:instructor-session', sessionId);
   $('attendance').replaceChildren();
   $('attendance-summary').textContent = '';
+  $('review-groups').replaceChildren();
+  $('review-late').hidden = true;
+  $('review-summary').textContent = '';
+  reviewQuestionId = null;
   refresh();
 }
 
@@ -97,6 +101,7 @@ async function refresh() {
   $('flagged').textContent = dashboard.flagged;
   renderJoin(dashboard.join);
   renderQuestions(dashboard.questions);
+  renderReviewPicker(dashboard.questions);
   $('download-xlsx').href = `/api/sessions/${sessionId}/export.xlsx`;
   $('download-csv').href = `/api/sessions/${sessionId}/export.csv`;
   try {
@@ -202,6 +207,113 @@ function renderQuestions(questions) {
   $('extend').disabled = !current;
 }
 
+// ---------- marking typed answers ----------
+
+let reviewQuestionId = null;
+let shownReviewOptions = '';
+
+// Keep the typed-question list and the "still to mark" warning up to date (only touches them when they change).
+function renderReviewPicker(questions) {
+  const typed = questions.filter((q) => q.type === 'TYPED' && q.released);
+  const label = (q) => `Q${q.orderIndex} · ${q.awaitingMarks ? `${q.awaitingMarks} to mark` : 'all marked'} · ${q.text.slice(0, 60)}`;
+  const options = typed.map((q) => `${q.id}|${label(q)}`).join('\n');
+  if (options !== shownReviewOptions) {
+    shownReviewOptions = options;
+    const select = $('review-question');
+    const chosen = select.value;
+    select.replaceChildren(new Option(typed.length ? 'Choose a typed question…' : 'No typed question released yet', ''));
+    for (const q of typed) select.append(new Option(label(q), q.id));
+    select.value = typed.some((q) => String(q.id) === chosen) ? chosen : '';
+  }
+  const waiting = questions.reduce((sum, q) => sum + q.awaitingMarks, 0);
+  $('marks-warning').hidden = waiting === 0;
+  $('marks-warning').textContent = `${waiting} typed answer${waiting === 1 ? '' : 's'} still to mark: they show as "review" in the sheet and are not in Total.`;
+}
+
+// Load one question's grouped answers. Not on the 1-second refresh: that would wipe a mark being typed.
+async function loadReview() {
+  reviewQuestionId = $('review-question').value || null;
+  $('review-groups').replaceChildren();
+  $('review-late').hidden = true;
+  $('review-summary').textContent = '';
+  if (!reviewQuestionId) return;
+  const review = await api('GET', `/api/sessions/${sessionId}/questions/${reviewQuestionId}/review`);
+  $('review-summary').textContent = `${review.marked} of ${review.marked + review.pending} marked · out of ${review.maxMarks}`;
+  $('review-groups').replaceChildren(...review.groups.map((g) => reviewGroup(g, review.maxMarks)));
+  if (!review.groups.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'No on-time answers to mark.';
+    $('review-groups').append(empty);
+  }
+  $('review-late').hidden = review.late.length === 0;
+  $('review-late-list').replaceChildren(...review.late.map((a) => {
+    const li = document.createElement('li');
+    li.textContent = showNames() ? `${a.rollNo}: ${a.text}` : a.text;
+    return li;
+  }));
+}
+
+// Are roll numbers shown? Off by default so the marker isn't influenced by whose answer it is.
+function showNames() {
+  return $('review-names').checked;
+}
+
+// A marks box with a Save button; saving reloads the list. An empty box clears the mark.
+function markControl(current, maxMarks, label, save) {
+  const row = document.createElement('div');
+  row.className = 'mark-row';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '0';
+  input.max = String(maxMarks);
+  input.step = '0.5';
+  input.value = current ?? '';
+  input.setAttribute('aria-label', 'Marks');
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.addEventListener('click', () => run(async () => {
+    await save(input.value === '' ? null : Number(input.value));
+    await loadReview();
+  }));
+  const outOf = document.createElement('span');
+  outOf.className = 'muted';
+  outOf.textContent = `/ ${maxMarks}`;
+  row.append(input, outOf, button);
+  return row;
+}
+
+// One group of identical answers: the wording, how many said it, one marks box for them all.
+function reviewGroup(group, maxMarks) {
+  const box = document.createElement('div');
+  box.className = group.marks !== null ? 'review-group marked' : 'review-group';
+  const text = document.createElement('div');
+  text.className = 'answer';
+  text.textContent = group.sample;
+  const save = (marks) => api('POST', `/api/sessions/${sessionId}/questions/${reviewQuestionId}/review/group`, { key: group.key, marks });
+  const controls = markControl(group.marks, maxMarks, group.count > 1 ? `Save for all ${group.count}` : 'Save', save);
+  if (group.mixed) controls.append(pill('marked differently below', 'warn'));
+  box.append(text, controls);
+
+  const details = document.createElement('details');
+  const summary = document.createElement('summary');
+  summary.className = 'muted';
+  summary.textContent = group.count > 1 ? `${group.count} students: mark one differently` : 'Student answer';
+  details.append(summary);
+  group.answers.forEach((answer, index) => {
+    const row = document.createElement('div');
+    row.className = 'student-answer';
+    const said = document.createElement('div');
+    said.className = 'answer';
+    said.textContent = `${showNames() ? answer.rollNo : `Student ${index + 1}`}: ${answer.text}`;
+    row.append(said, markControl(answer.marks, maxMarks, 'Save', (marks) =>
+      api('POST', `/api/sessions/${sessionId}/responses/${answer.responseId}/marks`, { marks })));
+    details.append(row);
+  });
+  box.append(details);
+  return box;
+}
+
 // The attendance table and the rule that decided it.
 async function renderAttendance() {
   const report = await api('GET', `/api/sessions/${sessionId}/attendance`);
@@ -261,6 +373,7 @@ $('add-question').addEventListener('click', () => run(async () => {
     options,
     correctOptionIndex: type === 'MCQ' ? Number($('q-correct').value) - 1 : null,
     durationSeconds: Number($('q-duration').value),
+    maxMarks: Number($('q-marks').value),
   };
   await api('POST', `/api/sessions/${sessionId}/questions`, body);
   $('q-text').value = '';
@@ -291,6 +404,17 @@ $('extend').addEventListener('click', () => run(async () => {
 }));
 
 $('refresh-attendance').addEventListener('click', () => renderAttendance().catch((e) => say(e.message, true)));
+
+$('review-question').addEventListener('change', () => loadReview().catch((e) => say(e.message, true)));
+$('review-load').addEventListener('click', () => loadReview().catch((e) => say(e.message, true)));
+$('review-names').addEventListener('change', () => loadReview().catch((e) => say(e.message, true)));
+
+// Options and "correct option" only apply to multiple choice.
+$('q-type').addEventListener('change', (e) => {
+  const mcq = e.target.value === 'MCQ';
+  $('q-options').hidden = !mcq;
+  $('q-correct-label').hidden = !mcq;
+});
 
 $('doubts-enabled').addEventListener('change', (e) => run(async () => {
   await api('POST', `/api/sessions/${sessionId}/doubts-settings?enabled=${e.target.checked}`);

@@ -51,6 +51,9 @@ public class Response {
     /** MCQ correctness; null for typed answers awaiting instructor review. Late answers keep it but are excluded from scoring. */
     private Boolean correct;
 
+    /** Marks the instructor gave a typed answer; null until marked. Not used for MCQ. */
+    private Double awardedMarks;
+
     protected Response() {
     }
 
@@ -122,5 +125,13 @@ public class Response {
 
     public void setCorrect(Boolean correct) {
         this.correct = correct;
+    }
+
+    public Double getAwardedMarks() {
+        return awardedMarks;
+    }
+
+    public void setAwardedMarks(Double awardedMarks) {
+        this.awardedMarks = awardedMarks;
     }
 }

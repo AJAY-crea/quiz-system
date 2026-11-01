@@ -58,6 +58,9 @@ public class Question {
     /** Extra seconds granted by the instructor after release (e.g. after an app restart). */
     private int extensionSeconds = 0;
 
+    /** Nullable (null = 1 mark) so ddl-auto=update can add it to a database that already has questions. */
+    private Integer maxMarks;
+
     protected Question() {
     }
 
@@ -127,5 +130,13 @@ public class Question {
 
     public void setExtensionSeconds(int extensionSeconds) {
         this.extensionSeconds = extensionSeconds;
+    }
+
+    public int getMaxMarks() {
+        return maxMarks == null ? 1 : maxMarks;
+    }
+
+    public void setMaxMarks(int maxMarks) {
+        this.maxMarks = maxMarks;
     }
 }

@@ -18,6 +18,11 @@ public interface ResponseRepository extends JpaRepository<Response, Long> {
 
     List<Response> findBySessionId(Long sessionId);
 
+    List<Response> findBySessionIdAndQuestionId(Long sessionId, Long questionId);
+
+    /** On-time typed answers on this question that the instructor hasn't marked yet. */
+    long countBySessionIdAndQuestionIdAndOnTimeTrueAndAwardedMarksIsNull(Long sessionId, Long questionId);
+
     Optional<Response> findBySessionIdAndQuestionIdAndRollNo(Long sessionId, Long questionId, String rollNo);
 
     long countBySessionIdAndQuestionIdAndRollNo(Long sessionId, Long questionId, String rollNo);

@@ -22,7 +22,9 @@ public class QuestionBankService {
         this.questionRepository = questionRepository;
     }
 
-    /** Adds a question; an MCQ must have at least 2 options and a correct option that exists. */
+    public static final int MAX_MARKS_LIMIT = 100;
+
+    /** Adds a question worth 1 mark. */
     @Transactional
     public Question add(
             Long sessionId,
@@ -32,6 +34,23 @@ public class QuestionBankService {
             List<String> options,
             Integer correctOptionIndex,
             int durationSeconds) {
+        return add(sessionId, orderIndex, type, text, options, correctOptionIndex, durationSeconds, 1);
+    }
+
+    /** Adds a question; an MCQ must have at least 2 options and a correct option that exists. */
+    @Transactional
+    public Question add(
+            Long sessionId,
+            int orderIndex,
+            QuestionType type,
+            String text,
+            List<String> options,
+            Integer correctOptionIndex,
+            int durationSeconds,
+            int maxMarks) {
+        if (maxMarks < 1 || maxMarks > MAX_MARKS_LIMIT) {
+            throw new IllegalArgumentException("a question must be worth between 1 and " + MAX_MARKS_LIMIT + " marks");
+        }
         QuizSession session = sessionRepository
                 .findById(sessionId)
                 .orElseThrow(() -> new NoSuchElementException("session not found: " + sessionId));
@@ -51,6 +70,7 @@ public class QuestionBankService {
         }
         question.setCorrectOptionIndex(correctOptionIndex);
         question.setDurationSeconds(durationSeconds);
+        question.setMaxMarks(maxMarks);
         return questionRepository.save(question);
     }
 }

@@ -2,6 +2,7 @@ package com.teamam.quiz.dashboard;
 
 import com.teamam.quiz.domain.Participant;
 import com.teamam.quiz.domain.Question;
+import com.teamam.quiz.domain.QuestionType;
 import com.teamam.quiz.domain.QuizSession;
 import com.teamam.quiz.repository.ParticipantRepository;
 import com.teamam.quiz.repository.QuestionRepository;
@@ -178,9 +179,13 @@ public class DashboardController {
         if (released && q.getOrderIndex() == session.getCurrentQuestionOrder()) {
             remainingMs = Math.max(0, Duration.between(Instant.now(), timingService.deadlineFor(q.getId())).toMillis());
         }
+        long awaitingMarks = q.getType() == QuestionType.TYPED
+                ? responseRepository.countBySessionIdAndQuestionIdAndOnTimeTrueAndAwardedMarksIsNull(session.getId(), q.getId())
+                : 0;
         return new DashboardView.QuestionRow(
                 q.getId(), q.getOrderIndex(), q.getType().name(), q.getText(), List.copyOf(q.getOptions()),
                 q.getCorrectOptionIndex(), q.getDurationSeconds() + q.getExtensionSeconds(), released,
-                responseRepository.countBySessionIdAndQuestionId(session.getId(), q.getId()), remainingMs);
+                responseRepository.countBySessionIdAndQuestionId(session.getId(), q.getId()), remainingMs,
+                q.getMaxMarks(), awaitingMarks);
     }
 }

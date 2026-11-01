@@ -31,7 +31,8 @@ public class QuestionController {
                 request.text(),
                 request.options(),
                 request.correctOptionIndex(),
-                request.durationSeconds());
+                request.durationSeconds(),
+                request.maxMarks() == null ? 1 : request.maxMarks());
         return ResponseEntity.ok(QuestionView.of(question));
     }
 }

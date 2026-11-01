@@ -4,7 +4,6 @@ import com.teamam.quiz.attendance.AttendanceReport;
 import com.teamam.quiz.attendance.AttendanceRow;
 import com.teamam.quiz.attendance.AttendanceService;
 import com.teamam.quiz.domain.Question;
-import com.teamam.quiz.domain.QuestionType;
 import com.teamam.quiz.domain.QuizSession;
 import com.teamam.quiz.domain.Response;
 import com.teamam.quiz.domain.Student;
@@ -12,6 +11,7 @@ import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
 import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.repository.StudentRepository;
+import com.teamam.quiz.scoring.ScoringService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,8 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Module 11, basic (mid-demo) version: one row per rostered student in roll-number order,
- * absentees included. MCQ mark = 1 only if correct and on time; typed answers show "review"
- * until the typed-review module exists. Analytics columns come at final.
+ * absentees included. Marks follow ScoringService.marksFor; a typed answer shows "review" until
+ * the instructor marks it. Analytics columns come at final.
  */
 @Service
 public class ExportService {
@@ -116,12 +116,17 @@ public class ExportService {
             rows.add(row);
         }
 
+        long awaitingMarks = rows.stream()
+                .flatMap(List::stream)
+                .filter(TYPED_PENDING::equals)
+                .count();
         List<List<String>> about = List.of(
                 List.of("Session", "#" + session.getId() + " " + session.getTitle()),
                 List.of("Generated", Instant.now().toString()),
-                List.of("Marking", "Multiple choice: 1 if correct and on time, else 0. Blank = not answered."),
+                List.of("Marking", "Multiple choice: the question's marks if correct and on time, else 0. Blank = not answered."),
                 List.of("Late answers", "Kept as evidence but scored 0."),
-                List.of("Typed answers", "\"" + TYPED_PENDING + "\" = awaiting instructor review; not in Total yet."),
+                List.of("Typed answers", "Marked by the instructor. \"" + TYPED_PENDING + "\" = not marked yet; not in Total. "
+                        + "Still to mark when this file was made: " + awaitingMarks + "."),
                 List.of("Attendance", attendance.basis().equals(AttendanceReport.BASIS_JOINED_ONLY)
                         ? "No question released: present = joined."
                         : "Present = answered at least " + Math.round(attendance.threshold() * 100)
@@ -130,15 +135,12 @@ public class ExportService {
         return new ScoreSheet("Session " + session.getId(), header, rows, about);
     }
 
-    /** One cell: 1/0 for MCQ (0 if late), "review" for typed, blank if not answered. */
+    /** One cell: the marks earned, "review" for a typed answer not marked yet, blank if not answered. */
     private static Object markFor(Question question, Response response) {
-        if (response == null) {
-            return null;
-        }
-        if (question.getType() == QuestionType.TYPED) {
+        if (response != null && ScoringService.awaitsMarking(question, response)) {
             return TYPED_PENDING;
         }
-        return response.isOnTime() && Boolean.TRUE.equals(response.getCorrect()) ? 1.0 : 0.0;
+        return ScoringService.marksFor(question, response);
     }
 
     /** Writes the sheet to .xlsx: bold header, frozen first row, sensible column widths, an About sheet. */

@@ -11,6 +11,7 @@ import com.teamam.quiz.questionbank.QuestionBankService;
 import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.roster.RosterEntry;
 import com.teamam.quiz.roster.RosterService;
+import com.teamam.quiz.scoring.ScoringService;
 import com.teamam.quiz.session.SessionEngine;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +49,9 @@ class ExportServiceTest {
 
     @Autowired
     private ResponseRepository responses;
+
+    @Autowired
+    private ScoringService scoring;
 
     // Guards against: a sheet that needs manual fixing before use: wrong order, missing absentees,
     // late answers scored, or a file Excel can't open (design doc risk #5: we reopen what we wrote).
@@ -89,6 +93,21 @@ class ExportServiceTest {
             assertThat(absentee.getCell(6).getStringCellValue()).isEqualTo("ABSENT");
 
             assertThat(workbook.getSheet("About")).isNotNull();
+        }
+    }
+
+    // Guards against: the teacher's marks not reaching the sheet, or not being added into the total.
+    @Test
+    void typedMarksReachTheSheetAndTheTotal() throws Exception {
+        Fixture f = fixture();
+        Response typed = responses.findBySessionId(f.sessionId).stream()
+                .filter(r -> r.getTypedAnswer() != null).findFirst().orElseThrow();
+        scoring.markOne(f.sessionId, typed.getId(), 0.5);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(export.xlsx(f.sessionId)))) {
+            Row ajay = workbook.getSheet("Scores").getRow(1);
+            assertThat(ajay.getCell(4).getNumericCellValue()).isEqualTo(0.5);
+            assertThat(ajay.getCell(5).getNumericCellValue()).isEqualTo(1.5);
         }
     }
 

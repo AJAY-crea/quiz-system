@@ -645,3 +645,83 @@ constraint (don't weaken security).
 
 **Result:** 54/54 tests (new: `tunnelledRequestsAreNeverTreatedAsTheInstructor`,
 `PublicLinkTest`). The live tunnel run is still to be done once cloudflared is installed.
+
+---
+
+## 2026-11-01 — Final-milestone features: the meta-prompt (Ajay and Mukesh, sitting together)
+
+**Prompt (verbatim)**
+> ok can we make proper changes more and commit as per that on both side ,we are sitting beside
+> eachother and also write some nice metaprompts for that in prompts.md and also think about cases
+> like for subjective questions where ppl write answers in the boxx and for that we dont do the
+> markings and teacher does it after and also small features ,go through the design doc and see what
+> we didnt implement and also what better features we can make , /eff
+
+(We asked for "prompts.md"; the log the course sees is this file, so the prompts live here.)
+
+**Technique:** meta-prompting (Module 2): the assistant writes the prompts, then executes them in the
+same session. The prompts below were written *before* the code, and each result records what
+actually happened.
+
+**Meta-prompt (written by the assistant from the instruction above)**
+> You are a prompt engineer and a sceptical tech lead for a CS5013 project due in five days.
+> Inputs: design_doc.md (§2 modules, §3 tests, §4 "Oct 10 – Nov 5", §5 risks), the current code, and
+> the team's new requirement that typed answers are marked by the teacher afterwards.
+> Step 1. List everything the design doc promises that the code lacks; cite the section.
+> Step 2. Walk through a real lecture and list what would hurt a student or the teacher, and check
+> each against the code, not from memory.
+> Step 3. Rank by how much it hurts, and drop whatever can't be built and tested properly in time.
+> Step 4. For each surviving item write one prompt with: a role; decisions stated, not left to the
+> implementer; negative constraints; the tests to write first (design-doc names where they exist);
+> and how to verify beyond unit tests. Assign an owner from design_doc §2 so commits stay honest.
+> Never invent results: a step not run stays "not run".
+
+**Step 1 output: promised but missing**
+| Design doc | Missing | Owner |
+|---|---|---|
+| §2 row 6, §4 | `groupTyped`: typed-answer review | Ajay |
+| §2 row 10, §4 | Analytics module (none of it exists) | Ajay |
+| §2 row 11, §4 | Export with analytics | Ajay |
+| §2 row 5 | Question upload endpoint | Ajay |
+| §3 | `reproducesHandComputedMarksheet`, `computesDiscriminationIndexOnFixture`, `endToEndSmokeRunsThreeQuestionQuiz` | Ajay |
+| §2 row 9, §4 | Doubt upvoting and queue | Mukesh |
+| §2 row 12, §4 | Load-test harness | Mukesh |
+| §3 | `keepsAuthorsHiddenAndCountsUpvoteOnce`, `sustainsFullRosterConcurrentSubmit` | Mukesh |
+| §5 risk 3 | Instructor can disable or clear integrity signals | Mukesh |
+| §4 | Integrity calibration run, stakeholder dry-run | needs real people; cannot be done by the assistant |
+
+**Step 2 output: found by walking through a lecture**
+- *Typed answers can be wiped while typing (read from the code, to confirm in a browser).*
+  `renderAnswerForm` clears the box on every state refresh, and a refresh happens on +30 s, on any
+  reconnect, and on reload. A student writing a long answer loses it.
+- A student who has typed or chosen an answer but not pressed Submit when time ends gets nothing.
+- Over-long typed answers are refused by the server only after the form has gone.
+- All marks are worth 1, so a 5-mark subjective question can't be expressed.
+- A wrong answer key can't be corrected after the quiz, even though analytics exist to reveal one.
+- The question can't be closed early when everyone has answered, the session can't be ended, and a
+  typo in an unreleased question can't be removed.
+- Students never see their marks.
+
+**Step 3: dropped.** Editing an answer after submitting (first answer stands: design doc §2 row 4);
+AI-assisted marking (a teacher asked to mark the answers; an LLM needs internet and sends student
+text off the laptop).
+
+### Generated prompt A — Ajay: teacher marks typed answers afterwards
+(role prompting, chain-of-thought on the grouping rule, negative prompting, tests first)
+> Act as a teacher who has 120 subjective answers to mark, and as a sceptical reviewer of your own
+> grouping rule. Typed answers are never auto-marked. Build the `ScoringService.groupTyped` promised
+> in design_doc §2 row 6.
+> Reason first: which answers may safely share one mark? Over-grouping is the dangerous failure,
+> because one mark lands on different answers. "V = IR." and "v=ir" are the same; "1 2" and "12", or
+> "x+1" and "x-1", are not. Write those as tests before the code.
+> Decisions: each question gets max marks (default 1, nullable column for existing databases). The
+> teacher marks per group, and can override one student. Half marks are allowed; 0 to max only.
+> Clearing a mark puts it back to waiting. Late answers score 0, are listed apart and can't be
+> marked (design doc: late is excluded from scoring). Keep one rule for "what does this answer earn",
+> used by every module. In the sheet, an unmarked answer stays "review" and out of Total; say how
+> many are left. Hide roll numbers while marking by default, to reduce marking bias (Module 7).
+> Do NOT: auto-mark, re-render the list on the 1-second dashboard refresh (it would wipe a mark being
+> typed), or render student text as HTML.
+
+**Result:** 60/60 tests (new: `TypedReviewTest` ×5, `typedMarksReachTheSheetAndTheTotal`). The screen
+itself is checked in the browser run recorded at the end of this log.
