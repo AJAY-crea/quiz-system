@@ -50,6 +50,7 @@ public class QuizSession {
     // Nullable (null = default) so ddl-auto=update can add them to a database that already has sessions.
     private Boolean doubtsEnabled;
     private Boolean doubtAuthorsVisible;
+    private Boolean marksVisibleToStudents;
 
     protected QuizSession() {
     }
@@ -122,5 +123,14 @@ public class QuizSession {
 
     public void setDoubtAuthorsVisible(boolean visible) {
         this.doubtAuthorsVisible = visible;
+    }
+
+    /** Off by default: students see their own marks only once the instructor publishes them. */
+    public boolean isMarksVisibleToStudents() {
+        return marksVisibleToStudents != null && marksVisibleToStudents;
+    }
+
+    public void setMarksVisibleToStudents(boolean visible) {
+        this.marksVisibleToStudents = visible;
     }
 }

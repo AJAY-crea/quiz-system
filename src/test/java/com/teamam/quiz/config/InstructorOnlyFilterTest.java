@@ -72,6 +72,29 @@ class InstructorOnlyFilterTest {
                 .andExpect(status().isForbidden());
     }
 
+    // Guards against: a student reading classmates' typed answers, marking their own answer, publishing
+    // marks, changing the answer key, or reading results that reveal the right option.
+    @Test
+    void markingAndAnalyticsRefuseLanAddresses() throws Exception {
+        mockMvc.perform(get("/api/sessions/1/questions/1/review").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/questions/1/review/group").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/responses/1/marks").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/marks-visibility").param("visible", "true").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/questions/1/answer-key").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/sessions/1/analytics").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/analytics/semester").with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/sessions/999/my-marks").param("rollNo", "A").param("deviceToken", "d")
+                        .with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isNotFound());
+    }
+
     // Guards against: phones being unable to send a doubt or an integrity signal.
     @Test
     void doubtAndIntegrityPostsStayReachableFromLan() throws Exception {

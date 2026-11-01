@@ -745,3 +745,20 @@ itself is checked in the browser run recorded at the end of this log.
 **Result:** 66/66 tests (new: `AnalyticsServiceTest` ×4 including the design-doc test,
 `reproducesHandComputedMarksheet`, `xlsxCarriesQuestionAnalysisAndTypedAnswers`). Both hand-worked
 tables matched on the first run.
+
+### Generated prompt C — Ajay: question upload, small fixes, students' own marks, smoke test
+(prompt chaining from A and B, negative prompting, security-first review)
+> Act as the professor preparing for a lecture the night before, then as a student trying to cheat.
+> 1. CSV question upload (design_doc §2 row 5; session-scoped, since a question belongs to a
+>    session). Quoted commas must work. Errors must name the line. All or nothing: one bad line adds
+>    no questions.
+> 2. Remove an unreleased question and close the numbering gap, or later releases will refuse.
+> 3. Let a student see their own marks, off until the instructor publishes. As the cheating student:
+>    what could this leak? Nothing about an open question (it would reveal the right answer to pass
+>    on), no answer key, no one else's marks, and only to the phone that joined.
+> 4. `endToEndSmokeRunsThreeQuestionQuiz` (§3): every step through the real endpoints, 10 students,
+>    3 questions. Do NOT mark it @Transactional: that hid the Week 4 lazy-loading crash.
+> 5. Prove every new instructor endpoint refuses a phone, and a tunnelled phone.
+
+**Result:** tests pass (new: `QuestionUploadTest` ×4, `MyMarksServiceTest` ×2,
+`endToEndSmokeRunsThreeQuestionQuiz`, `markingAndAnalyticsRefuseLanAddresses`).

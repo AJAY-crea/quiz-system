@@ -16,7 +16,7 @@ import org.springframework.web.util.UrlPathHelper;
 
 /**
  * The app runs on the instructor's own laptop, so "instructor" means "request from this machine".
- * Every /api call is instructor-only (default deny) except the three a student's phone needs;
+ * Every /api call is instructor-only (default deny) except the few a student's phone needs;
  * the instructor page itself and the H2 console are local-only too.
  */
 @Component
@@ -28,6 +28,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
             Pattern.compile("POST /api/roster/\\d+/join"),
             Pattern.compile("POST /api/sessions/\\d+/join-ticket"),
             Pattern.compile("GET /api/sessions/\\d+/state"),
+            Pattern.compile("GET /api/sessions/\\d+/my-marks"),
             Pattern.compile("POST /api/sessions/\\d+/doubts"),
             Pattern.compile("POST /api/sessions/\\d+/integrity"));
 
@@ -46,7 +47,7 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** Is this an instructor-only address? All /api calls are, except the 5 that phones need. */
+    /** Is this an instructor-only address? All /api calls are, except the ones phones need (STUDENT_API). */
     static boolean requiresInstructor(HttpServletRequest request) {
         String path = StringUtils.cleanPath(PATHS.getPathWithinApplication(request));
         if (path.startsWith("/api/")) {

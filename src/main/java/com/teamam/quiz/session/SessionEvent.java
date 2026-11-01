@@ -9,4 +9,5 @@ public record SessionEvent(String type, Long questionId) {
 
     public static final String RELEASED = "RELEASED";
     public static final String EXTENDED = "EXTENDED";
+    public static final String MARKS = "MARKS";
 }

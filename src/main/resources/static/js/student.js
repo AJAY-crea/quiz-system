@@ -209,6 +209,32 @@ async function refreshState() {
   }
   if (!response.ok) return;
   render(await response.json());
+  refreshMarks();
+}
+
+// Show this student's marks if the instructor has published them.
+async function refreshMarks() {
+  const { sessionId, rollNo, deviceToken: token } = identity;
+  const url = `/api/sessions/${encodeURIComponent(sessionId)}/my-marks`
+    + `?rollNo=${encodeURIComponent(rollNo)}&deviceToken=${encodeURIComponent(token)}`;
+  const response = await fetch(url).catch(() => null);
+  if (!response || !response.ok) return;
+  const marks = await response.json();
+  $('my-marks').hidden = !marks.published;
+  if (!marks.published) return;
+  const words = { AWAITING_MARKS: 'being marked', NOT_ANSWERED: 'not answered', LATE: 'late' };
+  $('my-marks-list').replaceChildren(...marks.rows.map((row) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = `Question ${row.orderIndex}`;
+    const value = document.createElement('span');
+    const word = words[row.status];
+    value.textContent = (row.status === 'AWAITING_MARKS' ? `— / ${row.maxMarks}` : `${row.marks ?? 0} / ${row.maxMarks}`) + (word ? ` (${word})` : '');
+    li.append(name, value);
+    return li;
+  }));
+  const awaiting = marks.rows.some((row) => row.status === 'AWAITING_MARKS');
+  $('my-marks-total').textContent = `Total: ${marks.total} / ${marks.outOf}${awaiting ? ' so far' : ''}`;
 }
 
 // Drop the saved identity and reload into the join form for this session (roll number stays pre-filled).

@@ -1,13 +1,16 @@
 package com.teamam.quiz.scoring;
 
+import com.teamam.quiz.session.SessionEngine;
+import com.teamam.quiz.session.SessionEvent;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Instructor-only (InstructorOnlyFilter): reading and marking typed answers. */
+/** Reading and marking typed answers is instructor-only (InstructorOnlyFilter); my-marks is for phones. */
 @RestController
 public class ReviewController {
 
@@ -20,9 +23,28 @@ public class ReviewController {
     }
 
     private final ScoringService scoringService;
+    private final MyMarksService myMarksService;
+    private final SessionEngine sessionEngine;
 
-    public ReviewController(ScoringService scoringService) {
+    public ReviewController(ScoringService scoringService, MyMarksService myMarksService, SessionEngine sessionEngine) {
         this.scoringService = scoringService;
+        this.myMarksService = myMarksService;
+        this.sessionEngine = sessionEngine;
+    }
+
+    /** Phone: this student's own marks (open to phones in InstructorOnlyFilter). */
+    @GetMapping("/api/sessions/{sessionId}/my-marks")
+    public MyMarks myMarks(
+            @PathVariable Long sessionId, @RequestParam String rollNo, @RequestParam String deviceToken) {
+        return myMarksService.forStudent(sessionId, rollNo, deviceToken);
+    }
+
+    /** Instructor publishes or hides marks; phones are told to refresh. */
+    @PostMapping("/api/sessions/{sessionId}/marks-visibility")
+    public Map<String, Boolean> publish(@PathVariable Long sessionId, @RequestParam boolean visible) {
+        myMarksService.setPublished(sessionId, visible);
+        sessionEngine.announce(sessionId, new SessionEvent(SessionEvent.MARKS, null));
+        return Map.of("visible", visible);
     }
 
     /** Instructor: a typed question's answers, grouped for marking. */

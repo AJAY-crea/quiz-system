@@ -52,6 +52,9 @@
       border-radius: 8px; cursor: pointer;
     }
     .status { margin-top: 12px; font-weight: 600; }
+    .card-title { font-size: 16px; margin: 0 0 8px; }
+    .marks-list { list-style: none; margin: 0; padding: 0; }
+    .marks-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -95,6 +98,11 @@
         <p id="answer-status" class="status"></p>
         <button type="button" id="fullscreen" class="secondary">Full screen</button>
       </div>
+    </div>
+    <div id="my-marks" class="card doubt-card" hidden>
+      <h2 class="card-title">My marks</h2>
+      <ul id="my-marks-list" class="marks-list"></ul>
+      <p id="my-marks-total" class="status"></p>
     </div>
     <div class="card doubt-card">
       <form id="doubt-form">

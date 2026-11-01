@@ -105,6 +105,13 @@
       <p class="muted">CSV: one roll number per line (an optional header and name column are fine). On roster: <b id="roster-size">0</b></p>
       <hr style="border:0;border-top:1px solid var(--border)">
       <div class="row">
+        <input type="file" id="questions-file" accept=".csv,.txt" aria-label="Questions CSV">
+        <button id="upload-questions" class="secondary">Upload questions</button>
+      </div>
+      <p class="muted">CSV: <code>type,seconds,marks,question,correct,option1,option2,…</code> e.g.
+        <code>MCQ,60,1,"Capital of India?",2,Mumbai,Delhi,Chennai</code> or <code>TYPED,120,5,"Explain Ohm's law"</code>.
+        Or add one at a time:</p>
+      <div class="row">
         <select id="q-type" aria-label="Question type"><option value="MCQ">Multiple choice</option><option value="TYPED">Typed answer</option></select>
         <input id="q-duration" type="number" min="5" value="60" style="width:90px" aria-label="Seconds"> <span class="muted">seconds</span>
         <input id="q-marks" type="number" min="1" max="100" value="1" style="width:70px" aria-label="Marks"> <span class="muted">marks</span>
@@ -146,7 +153,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Question</th><th>State</th><th>Answered</th></tr></thead>
+          <thead><tr><th>#</th><th>Question</th><th>Marks</th><th>State</th><th>Answered</th><th></th></tr></thead>
           <tbody id="questions"></tbody>
         </table>
       </div>
@@ -217,6 +224,7 @@
         <button id="refresh-attendance" class="secondary">Refresh attendance</button>
         <a id="download-xlsx" class="button-link">Download score sheet (.xlsx)</a>
         <a id="download-csv" class="button-link secondary">CSV</a>
+        <label class="muted"><input type="checkbox" id="marks-visible"> Show students their own marks</label>
         <span id="attendance-summary" class="muted"></span>
       </div>
       <p id="marks-warning" class="pending-note" hidden></p>

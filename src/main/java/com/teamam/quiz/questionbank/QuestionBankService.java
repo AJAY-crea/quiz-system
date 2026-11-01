@@ -81,6 +81,41 @@ public class QuestionBankService {
         return questionRepository.save(question);
     }
 
+    /** Adds a whole file of questions after the existing ones. All or nothing: one bad line adds none. */
+    @Transactional
+    public int addAll(Long sessionId, List<QuestionFileParser.ParsedQuestion> parsed) {
+        int order = questionRepository.findBySessionIdOrderByOrderIndex(sessionId).size();
+        for (QuestionFileParser.ParsedQuestion q : parsed) {
+            order++;
+            try {
+                add(sessionId, order, q.type(), q.text(), q.options(), q.correctOptionIndex(), q.durationSeconds(), q.maxMarks());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Question \"" + q.text() + "\": " + e.getMessage());
+            }
+        }
+        return parsed.size();
+    }
+
+    /** Removes a question that hasn't been released (e.g. a typo) and closes the gap in the numbering. */
+    @Transactional
+    public void remove(Long sessionId, Long questionId) {
+        Question question = questionRepository
+                .findById(questionId)
+                .filter(q -> q.getSession().getId().equals(sessionId))
+                .orElseThrow(() -> new NoSuchElementException("question not found: " + questionId));
+        if (question.getReleasedAt() != null) {
+            throw new IllegalStateException("question " + question.getOrderIndex() + " has been released and can't be removed");
+        }
+        int removedOrder = question.getOrderIndex();
+        questionRepository.delete(question);
+        questionRepository.flush();
+        for (Question later : questionRepository.findBySessionIdOrderByOrderIndex(sessionId)) {
+            if (later.getOrderIndex() > removedOrder) {
+                later.setOrderIndex(later.getOrderIndex() - 1);
+            }
+        }
+    }
+
     /** Fixes a wrong answer key, even after the quiz: every stored answer to the question is re-scored. */
     @Transactional
     public void changeAnswerKey(Long sessionId, Long questionId, int correctOptionIndex) {

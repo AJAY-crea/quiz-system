@@ -103,6 +103,7 @@ async function refresh() {
   renderJoin(dashboard.join);
   renderQuestions(dashboard.questions);
   renderReviewPicker(dashboard.questions);
+  $('marks-visible').checked = dashboard.session.marksVisible;
   $('download-xlsx').href = `/api/sessions/${sessionId}/export.xlsx`;
   $('download-csv').href = `/api/sessions/${sessionId}/export.csv`;
   try {
@@ -194,7 +195,7 @@ function renderQuestions(questions) {
   const current = questions.find((q) => q.remainingMs !== null);
   for (const q of questions) {
     const tr = document.createElement('tr');
-    tr.append(cell(q.orderIndex), cell(q.text));
+    tr.append(cell(q.orderIndex), cell(q.text), cell(q.maxMarks));
     const state = document.createElement('td');
     if (q === current) {
       state.append(q.remainingMs > 0 ? pill(`open · ${Math.ceil(q.remainingMs / 1000)}s left`, 'ok') : pill('time up', 'warn'));
@@ -202,6 +203,18 @@ function renderQuestions(questions) {
       state.append(q.released ? pill('done', '') : pill('not released', ''));
     }
     tr.append(state, cell(q.released ? `${q.answered} / ${dashboard.joined}` : '—'));
+    const actions = document.createElement('td');
+    if (!q.released) {
+      const remove = document.createElement('button');
+      remove.className = 'secondary';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => run(async () => {
+        await api('DELETE', `/api/sessions/${sessionId}/questions/${q.id}`);
+        say(`Removed question ${q.orderIndex}.`);
+      }));
+      actions.append(remove);
+    }
+    tr.append(actions);
     body.append(tr);
   }
   $('release-next').disabled = !questions.some((q) => !q.released);
@@ -473,6 +486,22 @@ $('upload-roster').addEventListener('click', () => run(async () => {
   form.append('file', file);
   const result = await api('POST', `/api/roster/${sessionId}/upload`, form);
   say(`Roster uploaded: ${result.rosterSize} roll numbers.`);
+}));
+
+$('upload-questions').addEventListener('click', () => run(async () => {
+  const file = $('questions-file').files[0];
+  if (!file) throw new Error('Choose a questions CSV first.');
+  const form = new FormData();
+  form.append('file', file);
+  const result = await api('POST', `/api/sessions/${sessionId}/questions/upload`, form);
+  say(`Added ${result.added} questions.`);
+}));
+
+$('marks-visible').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/marks-visibility?visible=${e.target.checked}`);
+  say(e.target.checked
+    ? 'Students can now see their own marks on closed questions. Answers still to mark show as "being marked".'
+    : 'Marks hidden from students.');
 }));
 
 $('add-question').addEventListener('click', () => run(async () => {

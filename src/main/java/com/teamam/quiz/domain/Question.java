@@ -83,6 +83,10 @@ public class Question {
         return orderIndex;
     }
 
+    public void setOrderIndex(int orderIndex) {
+        this.orderIndex = orderIndex;
+    }
+
     public QuestionType getType() {
         return type;
     }
