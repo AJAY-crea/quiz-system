@@ -816,3 +816,32 @@ The scripted checks all passed; these only showed up by reading the images, the 
 - Discrimination on an MCQ is ranked on marks so far, so it shifts while typed answers are unmarked,
   and rests on one student per group in a class of 5. The dashboard now says both, instead of
   showing "1.00" as if it were solid.
+
+### Generated prompt F — Mukesh: load-test harness
+(role prompting, negative prompting, honest reporting)
+> Act as a performance engineer who distrusts flattering numbers. Build
+> `LoadTestRunner.run(sessionId, clientCount)` -> `LoadReport` per design_doc §2 row 12: one simulated
+> client per rostered student, not surfaced on the dashboard. Each client joins over HTTP and opens
+> its own real WebSocket; do not call the service directly, which would skip the part most likely to
+> break. Everyone submits at once, and each sends the answer twice, so dedup is loaded as well.
+> Check the database afterwards: a reply saying "accepted" is not proof it was stored once.
+> Add a command-line mode that refuses any database that isn't clearly a throwaway, since it writes
+> hundreds of fake students. State the limit in the report's documentation: it all runs on one laptop,
+> so it does not test the classroom Wi-Fi. The class size is unknown (design doc: "fixed once we have
+> her class list"), so say which number we chose and why.
+
+**Result:** `sustainsFullRosterConcurrentSubmit` passes with 150 clients. Command-line runs of the
+packaged jar with a database on disk (as in class), on this laptop:
+
+| Clients | Accepted on time | Resends recognised | Stored | Median reply | Slowest reply |
+|---|---|---|---|---|---|
+| 100 | 100 | 100 | 100 | 71 ms | 116 ms |
+| 300 | 300 | 300 | 300 | 119 ms | 172 ms |
+| 600 | 600 | 600 | 600 | 182 ms | 302 ms |
+
+**What this does not show:** Wi-Fi or hotspot capacity (a Windows hotspot allows only 8 devices), real
+phones, or slow connections. The client and server share one machine, so the figures are for the server
+and database only. Design doc Plan B (reduced, honestly reported device count) still applies.
+
+**AI issue:** the first draft called a Java method that does not exist
+(`Thread.startVirtualThreadOrPlatform`), a hallucination. Spotted on review before compiling.
