@@ -3,6 +3,7 @@ import { AnswerBuffer, randomId } from './answer-buffer.js';
 
 const RESEND_INTERVAL_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 10000;
+const DOUBT_QUEUE_INTERVAL_MS = 10000; // a whole class polls this, so not every second
 
 const $ = (id) => document.getElementById(id);
 
@@ -135,8 +136,10 @@ function startQuiz() {
   connect();
   setInterval(resendPending, RESEND_INTERVAL_MS);
   setInterval(flushSignals, RESEND_INTERVAL_MS); // unsent integrity signals, e.g. after being offline
+  setInterval(refreshDoubtQueue, DOUBT_QUEUE_INTERVAL_MS);
   reportReturn(); // the page was hidden or closed during a question last time
   flushSignals();
+  refreshDoubtQueue();
   refreshState();
 }
 
@@ -509,11 +512,52 @@ $('doubt-form').addEventListener('submit', async (event) => {
   if (response.ok) {
     $('doubt-text').value = '';
     $('doubt-status').textContent = 'Sent to the instructor ✓';
+    refreshDoubtQueue();
   } else {
     const body = await response.json().catch(() => ({}));
     $('doubt-status').textContent = body.error ?? 'Could not send your doubt.';
   }
 });
+
+// Load the class's open doubts (the server's reply has no authors) and draw them with upvote buttons.
+async function refreshDoubtQueue() {
+  if (!identity || document.visibilityState === 'hidden') return;
+  const { sessionId, rollNo, deviceToken: token } = identity;
+  const url = `/api/sessions/${encodeURIComponent(sessionId)}/doubts/queue`
+    + `?rollNo=${encodeURIComponent(rollNo)}&deviceToken=${encodeURIComponent(token)}`;
+  const response = await fetch(url).catch(() => null);
+  if (!response || !response.ok) return;
+  const queue = await response.json();
+  $('doubt-queue').hidden = !queue.shared || queue.doubts.length === 0;
+  $('doubt-queue-list').replaceChildren(...queue.doubts.map(doubtItem));
+}
+
+// One doubt in the queue. Your own, or one you've already upvoted, shows its count but can't be pressed.
+function doubtItem(doubt) {
+  const li = document.createElement('li');
+  const text = document.createElement('span');
+  text.className = 'text';
+  text.textContent = doubt.mine ? `${doubt.text} (yours)` : doubt.text;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = `▲ ${doubt.upvotes}`;
+  button.disabled = doubt.mine || doubt.upvotedByMe;
+  button.setAttribute('aria-label', `Upvote, ${doubt.upvotes} so far`);
+  button.addEventListener('click', () => upvoteDoubt(doubt.id, button));
+  li.append(text, button);
+  return li;
+}
+
+// Send an upvote, then redraw so the count and order are the server's.
+async function upvoteDoubt(doubtId, button) {
+  button.disabled = true;
+  await fetch(`/api/sessions/${encodeURIComponent(identity.sessionId)}/doubts/${doubtId}/upvote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rollNo: identity.rollNo, deviceToken: identity.deviceToken }),
+  }).catch(() => null);
+  refreshDoubtQueue();
+}
 
 // ---------- start ----------
 

@@ -51,6 +51,7 @@ public class QuizSession {
     private Boolean doubtsEnabled;
     private Boolean doubtAuthorsVisible;
     private Boolean marksVisibleToStudents;
+    private Boolean doubtsShared;
 
     protected QuizSession() {
     }
@@ -123,6 +124,15 @@ public class QuizSession {
 
     public void setDoubtAuthorsVisible(boolean visible) {
         this.doubtAuthorsVisible = visible;
+    }
+
+    /** On by default: students see open doubts (never who asked) and can upvote them. She can switch this off. */
+    public boolean isDoubtsShared() {
+        return doubtsShared == null || doubtsShared;
+    }
+
+    public void setDoubtsShared(boolean shared) {
+        this.doubtsShared = shared;
     }
 
     /** Off by default: students see their own marks only once the instructor publishes them. */

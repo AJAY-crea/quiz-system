@@ -121,6 +121,7 @@ async function renderDoubts() {
   const panel = await api('GET', `/api/sessions/${sessionId}/doubts`);
   $('doubts-enabled').checked = panel.enabled;
   $('doubts-authors').checked = panel.authorsVisible;
+  $('doubts-shared').checked = panel.shared;
   const open = panel.doubts.filter((d) => !d.dismissed).length;
   $('doubt-count').textContent = open ? `${open} open` : '';
   $('doubts-empty').hidden = panel.doubts.length > 0;
@@ -132,7 +133,7 @@ async function renderDoubts() {
     const body = document.createElement('div');
     const meta = document.createElement('div');
     meta.className = 'muted';
-    meta.textContent = [d.questionOrder ? `Q${d.questionOrder}` : 'general', d.authorRollNo].filter(Boolean).join(' · ');
+    meta.textContent = [`▲ ${d.upvotes}`, d.questionOrder ? `Q${d.questionOrder}` : 'general', d.authorRollNo].filter(Boolean).join(' · ');
     const text = document.createElement('div');
     text.className = 'text';
     text.textContent = d.text;
@@ -569,6 +570,11 @@ $('doubts-enabled').addEventListener('change', (e) => run(async () => {
 
 $('doubts-authors').addEventListener('change', (e) => run(async () => {
   await api('POST', `/api/sessions/${sessionId}/doubts-settings?authorsVisible=${e.target.checked}`);
+}));
+
+$('doubts-shared').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/doubts-settings?shared=${e.target.checked}`);
+  say(e.target.checked ? 'Students can see and upvote doubts.' : 'Doubts now go only to you; students no longer see them.');
 }));
 
 $('base-url').addEventListener('change', () => { shownQrKey = null; refresh(); });

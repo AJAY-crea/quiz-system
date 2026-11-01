@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Only POST /doubts (submitting) is open to phones; everything else is instructor-only. */
+/** Submitting, the student queue and upvoting are open to phones; everything else is instructor-only. */
 @RestController
 public class DoubtsController {
 
@@ -17,8 +17,12 @@ public class DoubtsController {
     public record DoubtRequest(String rollNo, String deviceToken, String text) {
     }
 
+    /** What a phone sends with an upvote. */
+    public record UpvoteRequest(String rollNo, String deviceToken) {
+    }
+
     /** The dashboard's doubts panel: settings + the list. */
-    public record DoubtsPanel(boolean enabled, boolean authorsVisible, List<DoubtView> doubts) {
+    public record DoubtsPanel(boolean enabled, boolean authorsVisible, boolean shared, List<DoubtView> doubts) {
     }
 
     private final DoubtsService doubtsService;
@@ -34,12 +38,28 @@ public class DoubtsController {
         return Map.of("status", "sent");
     }
 
+    /** Phone: the class's open doubts, without authors. */
+    @GetMapping("/api/sessions/{sessionId}/doubts/queue")
+    public DoubtQueue queue(
+            @PathVariable Long sessionId, @RequestParam String rollNo, @RequestParam String deviceToken) {
+        return doubtsService.queueFor(sessionId, rollNo, deviceToken);
+    }
+
+    /** Phone upvotes a doubt. */
+    @PostMapping("/api/sessions/{sessionId}/doubts/{doubtId}/upvote")
+    public Map<String, String> upvote(
+            @PathVariable Long sessionId, @PathVariable Long doubtId, @RequestBody UpvoteRequest request) {
+        doubtsService.upvote(sessionId, doubtId, request.rollNo(), request.deviceToken());
+        return Map.of("status", "counted");
+    }
+
     /** Instructor: the doubts panel. */
     @GetMapping("/api/sessions/{sessionId}/doubts")
     public DoubtsPanel list(@PathVariable Long sessionId) {
         return new DoubtsPanel(
                 doubtsService.isEnabled(sessionId),
                 doubtsService.areAuthorsVisible(sessionId),
+                doubtsService.isShared(sessionId),
                 doubtsService.forInstructor(sessionId));
     }
 
@@ -55,7 +75,11 @@ public class DoubtsController {
     public DoubtsPanel settings(
             @PathVariable Long sessionId,
             @RequestParam(required = false) Boolean enabled,
-            @RequestParam(required = false) Boolean authorsVisible) {
+            @RequestParam(required = false) Boolean authorsVisible,
+            @RequestParam(required = false) Boolean shared) {
+        if (shared != null) {
+            doubtsService.setShared(sessionId, shared);
+        }
         if (enabled != null) {
             doubtsService.setEnabled(sessionId, enabled);
         }

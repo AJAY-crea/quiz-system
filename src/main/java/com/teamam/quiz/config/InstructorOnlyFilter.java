@@ -30,6 +30,8 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
             Pattern.compile("GET /api/sessions/\\d+/state"),
             Pattern.compile("GET /api/sessions/\\d+/my-marks"),
             Pattern.compile("POST /api/sessions/\\d+/doubts"),
+            Pattern.compile("GET /api/sessions/\\d+/doubts/queue"),
+            Pattern.compile("POST /api/sessions/\\d+/doubts/\\d+/upvote"),
             Pattern.compile("POST /api/sessions/\\d+/integrity"));
 
     private static final UrlPathHelper PATHS = new UrlPathHelper();

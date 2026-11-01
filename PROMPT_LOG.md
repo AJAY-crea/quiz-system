@@ -760,5 +760,21 @@ tables matched on the first run.
 >    3 questions. Do NOT mark it @Transactional: that hid the Week 4 lazy-loading crash.
 > 5. Prove every new instructor endpoint refuses a phone, and a tunnelled phone.
 
-**Result:** tests pass (new: `QuestionUploadTest` ×4, `MyMarksServiceTest` ×2,
+**Result:** 74/74 tests (new: `QuestionUploadTest` ×4, `MyMarksServiceTest` ×2,
 `endToEndSmokeRunsThreeQuestionQuiz`, `markingAndAnalyticsRefuseLanAddresses`).
+
+### Generated prompt D — Mukesh: doubt upvoting and queue
+(role prompting for privacy, negative prompting, tests first)
+> Act as a privacy reviewer and as a student who wants to game the system. Build upvoting and the
+> queue per design_doc §2 row 9. Students see open doubts and upvote each once; the instructor's
+> queue puts the most upvoted first, then oldest.
+> Enforce "once" with a database unique constraint (doubt, roll number), not only a check in code:
+> the same reasoning as design doc risk 4. Increment inside the database so two votes can't overwrite
+> each other. Refuse your own doubt, a dismissed doubt, and any phone but the one that joined.
+> Anonymity: the student reply type must have no author field at all, so nothing can leak by
+> accident; prove it by searching the serialised JSON for the roll number.
+> Sharing doubts with classmates brings a new risk the design doc doesn't cover: an abusive anonymous
+> message reaches the whole class. Give the instructor a switch, and make dismissing remove it.
+> Phones poll this, so not every second. Do NOT render doubt text as HTML.
+
+**Result:** `keepsAuthorsHiddenAndCountsUpvoteOnce` and 3 further tests pass; see the commit.

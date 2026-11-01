@@ -98,6 +98,12 @@ class InstructorOnlyFilterTest {
     // Guards against: phones being unable to send a doubt or an integrity signal.
     @Test
     void doubtAndIntegrityPostsStayReachableFromLan() throws Exception {
+        mockMvc.perform(get("/api/sessions/999/doubts/queue").param("rollNo", "A").param("deviceToken", "d")
+                        .with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/sessions/999/doubts/1/upvote").with(FROM_A_STUDENT_PHONE)
+                        .contentType("application/json").content("{\"rollNo\":\"A\",\"deviceToken\":\"d\"}"))
+                .andExpect(status().isNotFound());
         mockMvc.perform(post("/api/sessions/999/doubts").with(FROM_A_STUDENT_PHONE)
                         .contentType("application/json").content("{\"rollNo\":\"A\",\"deviceToken\":\"d\",\"text\":\"q\"}"))
                 .andExpect(status().isNotFound());

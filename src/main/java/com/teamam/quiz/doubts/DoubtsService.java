@@ -1,10 +1,12 @@
 package com.teamam.quiz.doubts;
 
 import com.teamam.quiz.domain.Doubt;
+import com.teamam.quiz.domain.DoubtUpvote;
 import com.teamam.quiz.domain.Participant;
 import com.teamam.quiz.domain.Question;
 import com.teamam.quiz.domain.QuizSession;
 import com.teamam.quiz.repository.DoubtRepository;
+import com.teamam.quiz.repository.DoubtUpvoteRepository;
 import com.teamam.quiz.repository.ParticipantRepository;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
@@ -12,13 +14,17 @@ import com.teamam.quiz.session.NotAParticipantException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Module 9, basic form (mid-demo): anonymous doubts tagged to the question open when they were
- * asked. Only the instructor ever reads doubts; nothing here sends a doubt or its author to
- * another student. Upvoting and the after-lecture queue come later (design doc, Oct 10+).
+ * Module 9: anonymous doubts tagged to the question open when they were asked. Students see open
+ * doubts and upvote them, so the instructor's queue puts what most of the class is stuck on first.
+ * An author's roll number reaches only the instructor, and only if she turns that on.
  */
 @Service
 public class DoubtsService {
@@ -30,16 +36,22 @@ public class DoubtsService {
     private final ParticipantRepository participantRepository;
     private final QuestionRepository questionRepository;
     private final DoubtRepository doubtRepository;
+    private final DoubtUpvoteRepository upvoteRepository;
+    private final TransactionTemplate writeTransaction;
 
     public DoubtsService(
             QuizSessionRepository sessionRepository,
             ParticipantRepository participantRepository,
             QuestionRepository questionRepository,
-            DoubtRepository doubtRepository) {
+            DoubtRepository doubtRepository,
+            DoubtUpvoteRepository upvoteRepository,
+            PlatformTransactionManager transactionManager) {
         this.sessionRepository = sessionRepository;
         this.participantRepository = participantRepository;
         this.questionRepository = questionRepository;
         this.doubtRepository = doubtRepository;
+        this.upvoteRepository = upvoteRepository;
+        this.writeTransaction = new TransactionTemplate(transactionManager);
     }
 
     /** A student sends a doubt: checks the channel is on, the phone, the length and the per-student limit. */
@@ -49,12 +61,7 @@ public class DoubtsService {
         if (!session.isDoubtsEnabled()) {
             throw new DoubtRefusedException("The doubts channel is turned off for this lecture.");
         }
-        Participant participant = participantRepository
-                .findBySessionIdAndRollNo(sessionId, rollNo)
-                .orElseThrow(() -> new NotAParticipantException("roll number has not joined this session"));
-        if (!participant.getDeviceToken().equals(deviceToken)) {
-            throw new NotAParticipantException("this device is not the one the roll number last joined from");
-        }
+        requireThisPhone(sessionId, rollNo, deviceToken);
         String trimmed = text == null ? "" : text.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("Write your doubt first.");
@@ -73,12 +80,64 @@ public class DoubtsService {
         doubtRepository.save(new Doubt(session, openQuestion, rollNo, trimmed));
     }
 
-    /** Open doubts first (oldest first, like a queue), then dismissed ones. */
+    /** A student upvotes a doubt. Pressing again changes nothing; own and dismissed doubts can't be upvoted. */
+    public void upvote(Long sessionId, Long doubtId, String rollNo, String deviceToken) {
+        QuizSession session = requireSession(sessionId);
+        requireThisPhone(sessionId, rollNo, deviceToken);
+        if (!session.isDoubtsEnabled() || !session.isDoubtsShared()) {
+            throw new DoubtRefusedException("Upvoting is turned off for this lecture.");
+        }
+        Doubt doubt = doubtRepository
+                .findByIdAndSessionId(doubtId, sessionId)
+                .orElseThrow(() -> new NoSuchElementException("doubt not found: " + doubtId));
+        if (doubt.isDismissed()) {
+            throw new DoubtRefusedException("The instructor has already dealt with this doubt.");
+        }
+        if (rollNo.equals(doubt.getAuthorRollNo())) {
+            throw new DoubtRefusedException("You can't upvote your own doubt.");
+        }
+        try {
+            // Both writes or neither. The exists check is the common path; the unique constraint is the real guard.
+            writeTransaction.executeWithoutResult(status -> {
+                if (!upvoteRepository.existsByDoubtIdAndRollNo(doubtId, rollNo)) {
+                    upvoteRepository.saveAndFlush(new DoubtUpvote(doubt, rollNo));
+                    doubtRepository.addUpvote(doubtId);
+                }
+            });
+        } catch (DataIntegrityViolationException doubleTap) {
+            // The same student's other request got there first; it has been counted once, as it should.
+        }
+    }
+
+    /** The open doubts a student can see: most upvoted first, then oldest. Never says who asked. */
+    @Transactional(readOnly = true)
+    public DoubtQueue queueFor(Long sessionId, String rollNo, String deviceToken) {
+        QuizSession session = requireSession(sessionId);
+        requireThisPhone(sessionId, rollNo, deviceToken);
+        if (!session.isDoubtsEnabled() || !session.isDoubtsShared()) {
+            return new DoubtQueue(false, List.of());
+        }
+        Set<Long> upvoted = upvoteRepository.doubtIdsUpvotedBy(sessionId, rollNo);
+        return new DoubtQueue(true, doubtRepository.findBySessionIdOrderByCreatedAtAscIdAsc(sessionId).stream()
+                .filter(d -> !d.isDismissed())
+                .sorted(Comparator.comparingInt(Doubt::getUpvotes).reversed())
+                .map(d -> new DoubtQueue.Item(
+                        d.getId(),
+                        d.getQuestion() == null ? null : d.getQuestion().getOrderIndex(),
+                        d.getText(),
+                        d.getUpvotes(),
+                        upvoted.contains(d.getId()),
+                        rollNo.equals(d.getAuthorRollNo())))
+                .toList());
+    }
+
+    /** The instructor's queue: open doubts, most upvoted first (ties: oldest first), then dismissed ones. */
     @Transactional(readOnly = true)
     public List<DoubtView> forInstructor(Long sessionId) {
         boolean showAuthors = requireSession(sessionId).isDoubtAuthorsVisible();
         return doubtRepository.findBySessionIdOrderByCreatedAtAscIdAsc(sessionId).stream()
-                .sorted(Comparator.comparing(Doubt::isDismissed))
+                .sorted(Comparator.comparing(Doubt::isDismissed)
+                        .thenComparing(Comparator.comparingInt(Doubt::getUpvotes).reversed()))
                 .map(d -> new DoubtView(
                         d.getId(),
                         d.getQuestion() == null ? null : d.getQuestion().getId(),
@@ -86,7 +145,8 @@ public class DoubtsService {
                         d.getText(),
                         showAuthors ? d.getAuthorRollNo() : null,
                         d.isDismissed(),
-                        d.getCreatedAt()))
+                        d.getCreatedAt(),
+                        d.getUpvotes()))
                 .toList();
     }
 
@@ -117,6 +177,20 @@ public class DoubtsService {
         sessionRepository.save(session);
     }
 
+    /** Instructor chooses whether students see and upvote each other's doubts. */
+    @Transactional
+    public void setShared(Long sessionId, boolean shared) {
+        QuizSession session = requireSession(sessionId);
+        session.setDoubtsShared(shared);
+        sessionRepository.save(session);
+    }
+
+    /** Do students see each other's doubts? */
+    @Transactional(readOnly = true)
+    public boolean isShared(Long sessionId) {
+        return requireSession(sessionId).isDoubtsShared();
+    }
+
     /** Is the doubts channel on? */
     @Transactional(readOnly = true)
     public boolean isEnabled(Long sessionId) {
@@ -127,6 +201,16 @@ public class DoubtsService {
     @Transactional(readOnly = true)
     public boolean areAuthorsVisible(Long sessionId) {
         return requireSession(sessionId).isDoubtAuthorsVisible();
+    }
+
+    /** Fails unless this roll number joined the session from this phone. */
+    private void requireThisPhone(Long sessionId, String rollNo, String deviceToken) {
+        Participant participant = participantRepository
+                .findBySessionIdAndRollNo(sessionId, rollNo)
+                .orElseThrow(() -> new NotAParticipantException("roll number has not joined this session"));
+        if (!participant.getDeviceToken().equals(deviceToken)) {
+            throw new NotAParticipantException("this device is not the one the roll number last joined from");
+        }
     }
 
     /** Loads the session or fails with "not found". */

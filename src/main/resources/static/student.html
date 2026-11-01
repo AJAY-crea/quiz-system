@@ -52,7 +52,13 @@
       border-radius: 8px; cursor: pointer;
     }
     .status { margin-top: 12px; font-weight: 600; }
-    .card-title { font-size: 16px; margin: 0 0 8px; }
+    .card-title { font-size: 16px; margin: 16px 0 8px; }
+    #my-marks .card-title { margin-top: 0; }
+    .doubt-queue { list-style: none; margin: 0; padding: 0; }
+    .doubt-queue li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--border); }
+    .doubt-queue .text { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+    .doubt-queue button { width: auto; flex-shrink: 0; min-height: 40px; padding: 6px 12px; margin: 0; }
+    .doubt-queue button:disabled { opacity: .6; cursor: default; }
     .marks-list { list-style: none; margin: 0; padding: 0; }
     .marks-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
   </style>
@@ -112,6 +118,11 @@
         <button type="submit">Send doubt</button>
         <p id="doubt-status" class="hint"></p>
       </form>
+      <div id="doubt-queue" hidden>
+        <h2 class="card-title">Doubts from the class</h2>
+        <p class="hint">Upvote the ones you share. The instructor sees the most upvoted first.</p>
+        <ul id="doubt-queue-list" class="doubt-queue"></ul>
+      </div>
     </div>
   </section>
 </main>
