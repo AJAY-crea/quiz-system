@@ -65,6 +65,19 @@
     .late-list { margin: 0; padding-left: 18px; font-size: 14px; color: var(--muted); }
     .late-list li { white-space: pre-wrap; overflow-wrap: anywhere; }
     .pending-note { color: var(--warn); font-size: 14px; margin: 0 0 8px; }
+    .result-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+    .result-figures { font-size: 14px; color: var(--muted); }
+    .result-figures b { color: var(--text); }
+    .option-bars { display: grid; gap: 6px; margin-top: 8px; }
+    .option-bar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(60px, 3fr) 90px; gap: 10px; align-items: center; font-size: 14px; }
+    .option-bar .track { height: 8px; }
+    .option-bar .fill { height: 100%; min-width: 2px; background: var(--accent); border-radius: 0 4px 4px 0; }
+    .option-bar .fill.empty { background: var(--border); }
+    .option-bar .figure { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .option-bar .name { overflow-wrap: anywhere; }
+    .result-note { color: var(--warn); font-size: 14px; margin: 6px 0 0; }
+    .result-actions { margin-top: 8px; }
+    .result-actions button { padding: 4px 10px; font-size: 13px; }
     h3 { font-size: 14px; margin: 12px 0 6px; font-weight: 600; }
     #status { min-height: 1.5em; font-size: 14px; }
     #status.error { color: var(--bad); }
@@ -180,7 +193,26 @@
     </div>
 
     <div class="card" style="grid-column: 1 / -1">
-      <h2>5 · Attendance and score sheet</h2>
+      <h2>5 · Results by question</h2>
+      <div class="row">
+        <button id="analytics-load" class="secondary">Refresh results</button>
+        <button id="semester-load" class="secondary">Compare all sessions</button>
+      </div>
+      <p class="muted">Discrimination: the top 27% of students' average on the question minus the bottom 27%'s.
+        Near 1 separates them well, near 0 doesn't, negative usually means a wrong answer key.
+        Don't project this during a question: it shows the answers.</p>
+      <div id="analytics" class="review-list"></div>
+      <div id="semester-wrap" class="table-wrap" hidden>
+        <h3>All sessions</h3>
+        <table>
+          <thead><tr><th>Session</th><th>Date</th><th>Joined</th><th>Questions</th><th>Average correct</th><th>Hardest question</th></tr></thead>
+          <tbody id="semester"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1">
+      <h2>6 · Attendance and score sheet</h2>
       <div class="row">
         <button id="refresh-attendance" class="secondary">Refresh attendance</button>
         <a id="download-xlsx" class="button-link">Download score sheet (.xlsx)</a>

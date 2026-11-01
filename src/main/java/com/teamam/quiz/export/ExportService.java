@@ -1,5 +1,7 @@
 package com.teamam.quiz.export;
 
+import com.teamam.quiz.analytics.AnalyticsService;
+import com.teamam.quiz.analytics.QuestionAnalytics;
 import com.teamam.quiz.attendance.AttendanceReport;
 import com.teamam.quiz.attendance.AttendanceRow;
 import com.teamam.quiz.attendance.AttendanceService;
@@ -34,9 +36,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Module 11, basic (mid-demo) version: one row per rostered student in roll-number order,
- * absentees included. Marks follow ScoringService.marksFor; a typed answer shows "review" until
- * the instructor marks it. Analytics columns come at final.
+ * Module 11: one row per rostered student in roll-number order, absentees included. Marks follow
+ * ScoringService.marksFor; a typed answer shows "review" until the instructor marks it. The .xlsx
+ * also carries a question-analysis sheet and every typed answer next to its mark.
  */
 @Service
 public class ExportService {
@@ -48,13 +50,16 @@ public class ExportService {
     private final ResponseRepository responseRepository;
     private final StudentRepository studentRepository;
     private final AttendanceService attendanceService;
+    private final AnalyticsService analyticsService;
 
     public ExportService(
             QuizSessionRepository sessionRepository,
             QuestionRepository questionRepository,
             ResponseRepository responseRepository,
             StudentRepository studentRepository,
-            AttendanceService attendanceService) {
+            AttendanceService attendanceService,
+            AnalyticsService analyticsService) {
+        this.analyticsService = analyticsService;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.responseRepository = responseRepository;
@@ -131,8 +136,60 @@ public class ExportService {
                         ? "No question released: present = joined."
                         : "Present = answered at least " + Math.round(attendance.threshold() * 100)
                                 + "% of released questions (late answers count)."),
+                List.of("Total", "Out of " + questions.stream().mapToInt(Question::getMaxMarks).sum() + " marks."),
+                List.of("Discrimination", "Top 27% of students' average on the question minus the bottom 27%'s. "
+                        + "Near 1 = separates them well; near 0 = doesn't; negative = check the answer key."),
                 List.of("Flags", "Advisory signals for review, never penalties."));
-        return new ScoreSheet("Session " + session.getId(), header, rows, about);
+        return new ScoreSheet(
+                "Session " + session.getId(), header, rows, about,
+                List.of(questionAnalysis(sessionId), typedAnswers(questions, responses, attendance)));
+    }
+
+    /** The "Question analysis" sheet: one row per released question. */
+    private ScoreSheet.Extra questionAnalysis(Long sessionId) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (QuestionAnalytics q : analyticsService.forSession(sessionId)) {
+            List<Object> row = new ArrayList<>();
+            row.add("Q" + q.orderIndex());
+            row.add(q.type());
+            row.add(q.text());
+            row.add((double) q.maxMarks());
+            row.add((double) q.answered());
+            row.add((double) q.late());
+            row.add(q.percentCorrect());
+            row.add(q.discrimination());
+            row.add(q.options().stream()
+                    .map(o -> o.text() + (o.correct() ? " (correct)" : "") + ": " + o.count() + " (" + o.percent() + "%)")
+                    .collect(Collectors.joining("; ")));
+            row.add(String.join(" ", q.notes()));
+            rows.add(row);
+        }
+        return new ScoreSheet.Extra(
+                "Question analysis",
+                List.of("Q", "Type", "Question", "Max marks", "Answered on time", "Late", "% correct",
+                        "Discrimination", "Options chosen", "Notes"),
+                rows);
+    }
+
+    /** The "Typed answers" sheet: every typed answer next to its mark, so marks can be checked later. */
+    private static ScoreSheet.Extra typedAnswers(
+            List<Question> questions, Map<String, Response> responses, AttendanceReport attendance) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (Question q : questions) {
+            for (AttendanceRow student : attendance.rows()) {
+                Response r = responses.get(student.rollNo() + "#" + q.getId());
+                if (r != null && r.getTypedAnswer() != null) {
+                    List<Object> row = new ArrayList<>();
+                    row.add("Q" + q.getOrderIndex());
+                    row.add(student.rollNo());
+                    row.add(r.getTypedAnswer());
+                    row.add(markFor(q, r));
+                    row.add(r.isOnTime() ? "on time" : "late");
+                    rows.add(row);
+                }
+            }
+        }
+        return new ScoreSheet.Extra("Typed answers", List.of("Q", "Roll No", "Answer", "Marks", "Arrived"), rows);
     }
 
     /** One cell: the marks earned, "review" for a typed answer not marked yet, blank if not answered. */
@@ -157,9 +214,7 @@ public class ExportService {
                 writeRow(scores.createRow(i + 1), sheet.rows().get(i), null);
             }
             scores.createFreezePane(2, 1);
-            for (int c = 0; c < sheet.header().size(); c++) {
-                scores.setColumnWidth(c, Math.min(60, Math.max(8, widestText(sheet, c) + 2)) * 256);
-            }
+            setColumnWidths(scores, sheet.header(), sheet.rows());
 
             Sheet about = workbook.createSheet("About");
             for (int i = 0; i < sheet.about().size(); i++) {
@@ -167,6 +222,16 @@ public class ExportService {
             }
             about.setColumnWidth(0, 16 * 256);
             about.setColumnWidth(1, 90 * 256);
+
+            for (ScoreSheet.Extra extra : sheet.extras()) {
+                Sheet tab = workbook.createSheet(extra.name());
+                writeRow(tab.createRow(0), new ArrayList<>(extra.header()), bold);
+                for (int i = 0; i < extra.rows().size(); i++) {
+                    writeRow(tab.createRow(i + 1), extra.rows().get(i), null);
+                }
+                tab.createFreezePane(0, 1);
+                setColumnWidths(tab, extra.header(), extra.rows());
+            }
 
             workbook.write(out);
             return out.toByteArray();
@@ -194,10 +259,17 @@ public class ExportService {
         }
     }
 
+    /** Makes each column as wide as its text, within sensible limits. */
+    private static void setColumnWidths(Sheet tab, List<String> header, List<List<Object>> rows) {
+        for (int c = 0; c < header.size(); c++) {
+            tab.setColumnWidth(c, Math.min(60, Math.max(8, widestText(header, rows, c) + 2)) * 256);
+        }
+    }
+
     /** Longest text in a column, to set its width. */
-    private static int widestText(ScoreSheet sheet, int column) {
-        int widest = sheet.header().get(column).length();
-        for (List<Object> row : sheet.rows()) {
+    private static int widestText(List<String> header, List<List<Object>> rows, int column) {
+        int widest = header.get(column).length();
+        for (List<Object> row : rows) {
             Object value = row.get(column);
             if (value != null) {
                 widest = Math.max(widest, value.toString().length());

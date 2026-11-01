@@ -725,3 +725,23 @@ text off the laptop).
 
 **Result:** 60/60 tests (new: `TypedReviewTest` ×5, `typedMarksReachTheSheetAndTheTotal`). The screen
 itself is checked in the browser run recorded at the end of this log.
+
+### Generated prompt B — Ajay: analytics and the upgraded export
+(few-shot through a hand-worked example, negative prompting, tests first)
+> Act as an exam-board statistician explaining to a teacher who has never heard of a discrimination
+> index. Build `AnalyticsService.forQuestion` per design_doc §2 row 10: % correct, discrimination
+> index, distractor pull, kept across the semester.
+> First work one example by hand: 20 students, 3 MCQs, top and bottom 27%. Put the working in the
+> test's comment, so `computesDiscriminationIndexOnFixture` can be checked by a person. Then code.
+> Decisions: rank only students who answered something, or absentees fill the bottom group. Break
+> ties by roll number, so results don't change between runs. Withhold the index (don't print a
+> confident-looking number) under 4 students or while typed answers are unmarked. A negative index
+> warns "check the answer key", and there must be a way to fix the key and re-score everyone.
+> Add "Question analysis" and "Typed answers" sheets to the .xlsx (§2 row 11, §4), and write
+> `reproducesHandComputedMarksheet` from a table marked by hand *before* running the code.
+> Do NOT: add a chart library (no internet in class), or show results on the 1-second refresh: the
+> dashboard may be on the projector during a question.
+
+**Result:** 66/66 tests (new: `AnalyticsServiceTest` ×4 including the design-doc test,
+`reproducesHandComputedMarksheet`, `xlsxCarriesQuestionAnalysisAndTypedAnswers`). Both hand-worked
+tables matched on the first run.

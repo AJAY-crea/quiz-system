@@ -111,6 +111,94 @@ class ExportServiceTest {
         }
     }
 
+    /**
+     * 20 responses marked by hand. Q1 = 1 mark, Q2 = 2 marks, Q3 = typed out of 5, Q4 = 1 mark.
+     *            Q1      Q2           Q3                Q4          Total
+     * M801       right   right (2)    4.5               right       8.5
+     * M802       wrong   right (2)    3                 right       6
+     * M803       right   right, late  late, marks 0     wrong       1
+     * M804       wrong   wrong        0                 wrong       0
+     * M805       right   wrong        not marked yet    right,late  1
+     * Guards against: the generated sheet disagreeing with a teacher's own arithmetic.
+     */
+    @Test
+    void reproducesHandComputedMarksheet() throws Exception {
+        QuizSession session = engine.createSession("hand marked");
+        Long sid = session.getId();
+        roster.uploadRoster(sid, List.of("M801", "M802", "M803", "M804", "M805"));
+        Question q1 = bank.add(sid, 1, QuestionType.MCQ, "Q1", TestQuiz.OPTIONS, 0, 60, 1);
+        Question q2 = bank.add(sid, 2, QuestionType.MCQ, "Q2", TestQuiz.OPTIONS, 1, 60, 2);
+        Question q3 = bank.add(sid, 3, QuestionType.TYPED, "Q3", null, null, 60, 5);
+        Question q4 = bank.add(sid, 4, QuestionType.MCQ, "Q4", TestQuiz.OPTIONS, 2, 60, 1);
+        for (Question q : List.of(q1, q2, q3, q4)) {
+            engine.release(sid, q.getId());
+        }
+        Object[][] sheet = {
+            {"M801", true, true, true, true, 4.5, true, true, true},
+            {"M802", false, true, true, true, 3.0, true, true, true},
+            {"M803", true, true, true, false, null, false, false, true},
+            {"M804", false, true, false, true, 0.0, true, false, true},
+            {"M805", true, true, false, true, null, true, true, false},
+        };
+        for (Object[] s : sheet) {
+            String roll = (String) s[0];
+            save(session, q1, roll, (Boolean) s[1], (Boolean) s[2], null);
+            save(session, q2, roll, (Boolean) s[3], (Boolean) s[4], null);
+            save(session, q3, roll, null, (Boolean) s[6], "answer of " + roll);
+            save(session, q4, roll, (Boolean) s[7], (Boolean) s[8], null);
+            Response typed = responses.findBySessionIdAndQuestionIdAndRollNo(sid, q3.getId(), roll).orElseThrow();
+            typed.setAwardedMarks((Double) s[5]);
+        }
+
+        Object[][] expected = {
+            {"M801", 1.0, 2.0, 4.5, 1.0, 8.5},
+            {"M802", 0.0, 2.0, 3.0, 1.0, 6.0},
+            {"M803", 1.0, 0.0, 0.0, 0.0, 1.0},
+            {"M804", 0.0, 0.0, 0.0, 0.0, 0.0},
+            {"M805", 1.0, 0.0, "review", 0.0, 1.0},
+        };
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(export.xlsx(sid)))) {
+            Sheet scores = workbook.getSheet("Scores");
+            for (int r = 0; r < expected.length; r++) {
+                Row row = scores.getRow(r + 1);
+                assertThat(row.getCell(0).getStringCellValue()).isEqualTo(expected[r][0]);
+                for (int c = 1; c < expected[r].length; c++) {
+                    Cell cell = row.getCell(c + 1);
+                    if (expected[r][c] instanceof String text) {
+                        assertThat(cell.getStringCellValue()).isEqualTo(text);
+                    } else {
+                        assertThat(cell.getNumericCellValue()).as("%s column %d", expected[r][0], c).isEqualTo(expected[r][c]);
+                    }
+                }
+            }
+        }
+    }
+
+    // Guards against: the analytics or typed answers missing from the file, or a student's typed
+    // "=formula" running in Excel.
+    @Test
+    void xlsxCarriesQuestionAnalysisAndTypedAnswers() throws Exception {
+        Fixture f = fixture();
+        Response typed = responses.findBySessionId(f.sessionId).stream()
+                .filter(r -> r.getTypedAnswer() != null).findFirst().orElseThrow();
+        typed.setTypedAnswer("=1+1");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(export.xlsx(f.sessionId)))) {
+            Sheet analysis = workbook.getSheet("Question analysis");
+            assertThat(analysis.getLastRowNum()).isEqualTo(3);
+            assertThat(analysis.getRow(1).getCell(0).getStringCellValue()).isEqualTo("Q1");
+            assertThat(analysis.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(2.0); // answered on time
+            assertThat(analysis.getRow(1).getCell(6).getNumericCellValue()).isEqualTo(50.0); // % correct
+            assertThat(analysis.getRow(1).getCell(8).getStringCellValue()).contains("(correct)");
+
+            Row answer = workbook.getSheet("Typed answers").getRow(1);
+            assertThat(answer.getCell(1).getStringCellValue()).isEqualTo("CS23B801");
+            assertThat(answer.getCell(2).getCellType()).isEqualTo(org.apache.poi.ss.usermodel.CellType.STRING);
+            assertThat(answer.getCell(2).getStringCellValue()).isEqualTo("=1+1");
+            assertThat(answer.getCell(3).getStringCellValue()).isEqualTo("review");
+        }
+    }
+
     // Guards against: a roster name like "=HYPERLINK(...)" running as a formula when the CSV is opened.
     @Test
     void csvEscapesSpreadsheetFormulaInjection() {

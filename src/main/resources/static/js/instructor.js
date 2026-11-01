@@ -82,6 +82,7 @@ function selectSession(id) {
   $('review-late').hidden = true;
   $('review-summary').textContent = '';
   reviewQuestionId = null;
+  $('analytics').replaceChildren();
   refresh();
 }
 
@@ -314,6 +315,119 @@ function reviewGroup(group, maxMarks) {
   return box;
 }
 
+// ---------- results by question ----------
+
+// One option's row: its text, a bar for its share of answers, and the figures.
+function optionBar(option) {
+  const row = document.createElement('div');
+  row.className = 'option-bar';
+  row.title = `${option.count} answer${option.count === 1 ? '' : 's'}, ${option.percent}%`;
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = option.correct ? `${option.text} (correct ✓)` : option.text;
+  const track = document.createElement('div');
+  track.className = 'track';
+  const fill = document.createElement('div');
+  fill.className = option.count ? 'fill' : 'fill empty';
+  fill.style.width = `${option.percent}%`;
+  track.append(fill);
+  const figure = document.createElement('span');
+  figure.className = 'figure';
+  figure.textContent = `${option.count} · ${option.percent}%`;
+  row.append(name, track, figure);
+  return row;
+}
+
+// One question's result: headline figures, how the options split, and any warnings.
+function resultCard(q) {
+  const box = document.createElement('div');
+  box.className = 'review-group';
+  const head = document.createElement('div');
+  head.className = 'result-head';
+  const title = document.createElement('span');
+  title.className = 'answer';
+  title.textContent = `Q${q.orderIndex}. ${q.text}`;
+  const figures = document.createElement('span');
+  figures.className = 'result-figures';
+  const percent = q.percentCorrect === null ? '—' : `${q.percentCorrect}%`;
+  const discrimination = q.discrimination === null ? 'not enough data' : q.discrimination.toFixed(2);
+  figures.append('correct ', Object.assign(document.createElement('b'), { textContent: percent }),
+    ' · discrimination ', Object.assign(document.createElement('b'), { textContent: discrimination }),
+    ` · ${q.answered} on time, ${q.late} late`);
+  head.append(title, figures);
+  box.append(head);
+  if (q.type === 'MCQ') {
+    const bars = document.createElement('div');
+    bars.className = 'option-bars';
+    bars.append(...q.options.map(optionBar));
+    box.append(bars);
+  } else if (q.awaitingMarks) {
+    const waiting = document.createElement('p');
+    waiting.className = 'muted';
+    waiting.textContent = `${q.awaitingMarks} still to mark; the figures are from the marked answers only.`;
+    box.append(waiting);
+  }
+  for (const note of q.notes) {
+    const p = document.createElement('p');
+    p.className = 'result-note';
+    p.textContent = note;
+    box.append(p);
+  }
+  if (q.type === 'MCQ') {
+    const actions = document.createElement('div');
+    actions.className = 'result-actions';
+    const fix = document.createElement('button');
+    fix.className = 'secondary';
+    fix.textContent = 'Change correct answer';
+    fix.addEventListener('click', () => changeAnswerKey(q));
+    actions.append(fix);
+    box.append(actions);
+  }
+  return box;
+}
+
+// Ask for the right option, re-score everyone, and refresh the results.
+function changeAnswerKey(q) {
+  const list = q.options.map((o, i) => `${i + 1}. ${o.text}`).join('\n');
+  const answer = window.prompt(`Which option is correct for Q${q.orderIndex}? Every answer will be re-scored.\n${list}`);
+  if (answer === null) return;
+  run(async () => {
+    const number = Number(answer);
+    if (!Number.isInteger(number) || number < 1 || number > q.options.length) {
+      throw new Error(`Enter an option number from 1 to ${q.options.length}.`);
+    }
+    await api('POST', `/api/sessions/${sessionId}/questions/${q.questionId}/answer-key?correctOptionIndex=${number - 1}`);
+    await loadAnalytics();
+    say(`Q${q.orderIndex} re-scored.`);
+  });
+}
+
+// Load the results on request, so they aren't on the projector by accident during a question.
+async function loadAnalytics() {
+  const questions = await api('GET', `/api/sessions/${sessionId}/analytics`);
+  $('analytics').replaceChildren(...questions.map(resultCard));
+  if (!questions.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'No question released yet.';
+    $('analytics').append(empty);
+  }
+}
+
+// One line per session, so she can see how the class is doing across the semester.
+async function loadSemester() {
+  const sessions = await api('GET', '/api/analytics/semester');
+  $('semester').replaceChildren(...sessions.map((s) => {
+    const tr = document.createElement('tr');
+    tr.append(cell(`#${s.sessionId} · ${s.title}`), cell(new Date(s.createdAt).toLocaleDateString()),
+      cell(`${s.joined} / ${s.rosterSize}`), cell(s.released),
+      cell(s.averagePercentCorrect === null ? '—' : `${s.averagePercentCorrect}%`),
+      cell(s.hardestQuestionOrder === null ? '—' : `Q${s.hardestQuestionOrder} (${s.hardestQuestionPercent}%)`));
+    return tr;
+  }));
+  $('semester-wrap').hidden = false;
+}
+
 // The attendance table and the rule that decided it.
 async function renderAttendance() {
   const report = await api('GET', `/api/sessions/${sessionId}/attendance`);
@@ -404,6 +518,9 @@ $('extend').addEventListener('click', () => run(async () => {
 }));
 
 $('refresh-attendance').addEventListener('click', () => renderAttendance().catch((e) => say(e.message, true)));
+
+$('analytics-load').addEventListener('click', () => loadAnalytics().catch((e) => say(e.message, true)));
+$('semester-load').addEventListener('click', () => loadSemester().catch((e) => say(e.message, true)));
 
 $('review-question').addEventListener('change', () => loadReview().catch((e) => say(e.message, true)));
 $('review-load').addEventListener('click', () => loadReview().catch((e) => say(e.message, true)));

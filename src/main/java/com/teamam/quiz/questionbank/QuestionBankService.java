@@ -3,8 +3,10 @@ package com.teamam.quiz.questionbank;
 import com.teamam.quiz.domain.Question;
 import com.teamam.quiz.domain.QuestionType;
 import com.teamam.quiz.domain.QuizSession;
+import com.teamam.quiz.domain.Response;
 import com.teamam.quiz.repository.QuestionRepository;
 import com.teamam.quiz.repository.QuizSessionRepository;
+import com.teamam.quiz.repository.ResponseRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
@@ -16,10 +18,15 @@ public class QuestionBankService {
 
     private final QuizSessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
+    private final ResponseRepository responseRepository;
 
-    public QuestionBankService(QuizSessionRepository sessionRepository, QuestionRepository questionRepository) {
+    public QuestionBankService(
+            QuizSessionRepository sessionRepository,
+            QuestionRepository questionRepository,
+            ResponseRepository responseRepository) {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
+        this.responseRepository = responseRepository;
     }
 
     public static final int MAX_MARKS_LIMIT = 100;
@@ -72,5 +79,25 @@ public class QuestionBankService {
         question.setDurationSeconds(durationSeconds);
         question.setMaxMarks(maxMarks);
         return questionRepository.save(question);
+    }
+
+    /** Fixes a wrong answer key, even after the quiz: every stored answer to the question is re-scored. */
+    @Transactional
+    public void changeAnswerKey(Long sessionId, Long questionId, int correctOptionIndex) {
+        Question question = questionRepository
+                .findById(questionId)
+                .filter(q -> q.getSession().getId().equals(sessionId))
+                .orElseThrow(() -> new NoSuchElementException("question not found: " + questionId));
+        if (question.getType() != QuestionType.MCQ) {
+            throw new IllegalArgumentException("only multiple-choice questions have an answer key");
+        }
+        if (correctOptionIndex < 0 || correctOptionIndex >= question.getOptions().size()) {
+            throw new IllegalArgumentException("correctOptionIndex must point at one of the question's options");
+        }
+        question.setCorrectOptionIndex(correctOptionIndex);
+        questionRepository.save(question);
+        List<Response> answers = responseRepository.findBySessionIdAndQuestionId(sessionId, questionId);
+        answers.forEach(r -> r.setCorrect(Integer.valueOf(correctOptionIndex).equals(r.getSelectedOptionIndex())));
+        responseRepository.saveAll(answers);
     }
 }
