@@ -375,7 +375,7 @@ function resultCard(q) {
     ` · ${q.answered} on time, ${q.late} late`);
   head.append(title, figures);
   box.append(head);
-  if (q.type === 'MCQ') {
+  if (q.type !== 'TYPED') {
     const bars = document.createElement('div');
     bars.className = 'option-bars';
     bars.append(...q.options.map(optionBar));
@@ -392,7 +392,7 @@ function resultCard(q) {
     p.textContent = note;
     box.append(p);
   }
-  if (q.type === 'MCQ') {
+  if (q.type !== 'TYPED') {
     const actions = document.createElement('div');
     actions.className = 'result-actions';
     const fix = document.createElement('button');
@@ -405,17 +405,24 @@ function resultCard(q) {
   return box;
 }
 
-// Ask for the right option, re-score everyone, and refresh the results.
+// "1, 3" -> [0, 2] (option numbers as shown, counting from 1); throws if any isn't a valid option.
+function optionNumbers(text, optionCount) {
+  const numbers = text.split(/[\s,;]+/).filter(Boolean).map(Number);
+  if (!numbers.length || numbers.some((n) => !Number.isInteger(n) || n < 1 || n > optionCount)) {
+    throw new Error(`Enter option numbers from 1 to ${optionCount}, e.g. 1 or 1,3.`);
+  }
+  return numbers.map((n) => n - 1);
+}
+
+// Ask for the right option(s), re-score everyone, and refresh the results.
 function changeAnswerKey(q) {
   const list = q.options.map((o, i) => `${i + 1}. ${o.text}`).join('\n');
-  const answer = window.prompt(`Which option is correct for Q${q.orderIndex}? Every answer will be re-scored.\n${list}`);
+  const several = q.type === 'MULTI' ? 's (e.g. 1,3)' : '';
+  const answer = window.prompt(`Correct option${several} for Q${q.orderIndex}? Every answer will be re-scored.\n${list}`);
   if (answer === null) return;
   run(async () => {
-    const number = Number(answer);
-    if (!Number.isInteger(number) || number < 1 || number > q.options.length) {
-      throw new Error(`Enter an option number from 1 to ${q.options.length}.`);
-    }
-    await api('POST', `/api/sessions/${sessionId}/questions/${q.questionId}/answer-key?correctOptionIndex=${number - 1}`);
+    const key = optionNumbers(answer, q.options.length).map((i) => `correctOptionIndex=${i}`).join('&');
+    await api('POST', `/api/sessions/${sessionId}/questions/${q.questionId}/answer-key?${key}`);
     await loadAnalytics();
     say(`Q${q.orderIndex} re-scored.`);
   });
@@ -514,13 +521,14 @@ $('add-question').addEventListener('click', () => run(async () => {
   const type = $('q-type').value;
   const text = $('q-text').value.trim();
   if (!text) throw new Error('Write the question text first.');
-  const options = type === 'MCQ' ? $('q-options').value.split('\n').map((o) => o.trim()).filter(Boolean) : [];
+  const options = type === 'TYPED' ? [] : $('q-options').value.split('\n').map((o) => o.trim()).filter(Boolean);
+  const key = type === 'TYPED' ? [] : optionNumbers($('q-correct').value, Math.max(options.length, 1));
   const body = {
     orderIndex: (dashboard?.questions.length ?? 0) + 1,
     type,
     text,
     options,
-    correctOptionIndex: type === 'MCQ' ? Number($('q-correct').value) - 1 : null,
+    correctOptionIndexes: key,
     durationSeconds: Number($('q-duration').value),
     maxMarks: Number($('q-marks').value),
   };
@@ -588,9 +596,10 @@ $('review-names').addEventListener('change', () => loadReview().catch((e) => say
 
 // Options and "correct option" only apply to multiple choice.
 $('q-type').addEventListener('change', (e) => {
-  const mcq = e.target.value === 'MCQ';
-  $('q-options').hidden = !mcq;
-  $('q-correct-label').hidden = !mcq;
+  const choice = e.target.value !== 'TYPED';
+  $('q-options').hidden = !choice;
+  $('q-correct-label').hidden = !choice;
+  $('q-correct-text').textContent = e.target.value === 'MULTI' ? 'Correct options # (e.g. 1,3)' : 'Correct option #';
 });
 
 $('doubts-enabled').addEventListener('change', (e) => run(async () => {

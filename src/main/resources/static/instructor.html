@@ -112,17 +112,18 @@
         <button id="upload-questions" class="secondary">Upload questions</button>
       </div>
       <p class="muted">CSV: <code>type,seconds,marks,question,correct,option1,option2,…</code> e.g.
-        <code>MCQ,60,1,"Capital of India?",2,Mumbai,Delhi,Chennai</code> or <code>TYPED,120,5,"Explain Ohm's law"</code>.
+        <code>MCQ,60,1,"Capital of India?",2,Mumbai,Delhi,Chennai</code>, <code>MULTI,60,2,"Which are prime?",1;3,2,4,5</code>
+        (several correct, separated by ;) or <code>TYPED,120,5,"Explain Ohm's law"</code>.
         Or add one at a time:</p>
       <div class="row">
-        <select id="q-type" aria-label="Question type"><option value="MCQ">Multiple choice</option><option value="TYPED">Typed answer</option></select>
+        <select id="q-type" aria-label="Question type"><option value="MCQ">Multiple choice: one answer</option><option value="MULTI">Multiple choice: several answers</option><option value="TYPED">Typed answer</option></select>
         <input id="q-duration" type="number" min="5" value="60" style="width:90px" aria-label="Seconds"> <span class="muted">seconds</span>
         <input id="q-marks" type="number" min="1" max="100" value="1" style="width:70px" aria-label="Marks"> <span class="muted">marks</span>
       </div>
       <textarea id="q-text" placeholder="Question text"></textarea>
       <textarea id="q-options" placeholder="Options, one per line"></textarea>
       <div class="row">
-        <label class="muted" id="q-correct-label">Correct option # <input id="q-correct" type="number" min="1" value="1" style="width:70px"></label>
+        <label class="muted" id="q-correct-label"><span id="q-correct-text">Correct option #</span> <input id="q-correct" inputmode="numeric" value="1" style="width:90px"></label>
         <button id="add-question">Add question</button>
       </div>
     </div>

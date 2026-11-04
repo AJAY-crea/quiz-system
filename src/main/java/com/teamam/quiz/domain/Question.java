@@ -50,6 +50,10 @@ public class Question {
 
     private Integer correctOptionIndex;
 
+    /** For MULTI: every correct option, e.g. "0,2". Nullable so existing databases update cleanly. */
+    @Column(length = 200)
+    private String correctOptionSet;
+
     private int durationSeconds = 30;
 
     /** Set by SessionEngine.release(); null until this question has been released. */
@@ -110,6 +114,24 @@ public class Question {
 
     public void setCorrectOptionIndex(Integer correctOptionIndex) {
         this.correctOptionIndex = correctOptionIndex;
+    }
+
+    /** The correct options: one for MCQ, one or more for MULTI, none for typed. */
+    public List<Integer> getCorrectOptionIndexes() {
+        if (type == QuestionType.MULTI) {
+            return OptionSets.parse(correctOptionSet);
+        }
+        return correctOptionIndex == null ? List.of() : List.of(correctOptionIndex);
+    }
+
+    /** Sets the key: the single option for MCQ, the set for MULTI. */
+    public void setCorrectOptionIndexes(List<Integer> correct) {
+        if (type == QuestionType.MULTI) {
+            correctOptionSet = OptionSets.format(correct);
+            correctOptionIndex = null;
+        } else {
+            correctOptionIndex = correct.isEmpty() ? null : correct.get(0);
+        }
     }
 
     public int getDurationSeconds() {

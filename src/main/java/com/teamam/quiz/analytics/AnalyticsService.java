@@ -141,11 +141,13 @@ public class AnalyticsService {
                 : round(marked.stream().mapToDouble(Double::doubleValue).average().orElse(0) * 100);
         Double discrimination = awaiting > 0 || received.isEmpty() ? null : discrimination(q, ranked, answers);
         List<QuestionAnalytics.OptionStat> options = optionStats(q, onTime);
+        // With several correct options, "more chose X than the correct option" has no single meaning.
+        List<QuestionAnalytics.OptionStat> forPullNote = q.getType() == QuestionType.MCQ ? options : List.of();
 
         return new QuestionAnalytics(
                 q.getId(), q.getOrderIndex(), q.getType().name(), q.getText(), q.getMaxMarks(),
                 onTime.size(), received.size() - onTime.size(), awaiting,
-                percentCorrect, discrimination, options, notes(percentCorrect, discrimination, options));
+                percentCorrect, discrimination, options, notes(percentCorrect, discrimination, forPullNote));
     }
 
     /** Top group's average on this question minus bottom group's (each from 0 to 1), or null if too few students. */
@@ -170,16 +172,16 @@ public class AnalyticsService {
 
     /** How many picked each option, in the question's real order. Empty for typed questions. */
     private static List<QuestionAnalytics.OptionStat> optionStats(Question q, List<Response> onTime) {
-        if (q.getType() != QuestionType.MCQ) {
+        if (!q.getType().isChoice()) {
             return List.of();
         }
         List<QuestionAnalytics.OptionStat> stats = new ArrayList<>();
         for (int i = 0; i < q.getOptions().size(); i++) {
             int option = i;
-            long count = onTime.stream().filter(r -> Objects.equals(r.getSelectedOptionIndex(), option)).count();
+            long count = onTime.stream().filter(r -> r.getSelectedOptions().contains(option)).count();
             double percent = onTime.isEmpty() ? 0 : round(count * 100.0 / onTime.size());
             stats.add(new QuestionAnalytics.OptionStat(
-                    i, q.getOptions().get(i), count, percent, Objects.equals(q.getCorrectOptionIndex(), i)));
+                    i, q.getOptions().get(i), count, percent, q.getCorrectOptionIndexes().contains(i)));
         }
         return stats;
     }

@@ -48,6 +48,23 @@ public class ScoringService {
         return Objects.equals(canonicalIndex, question.getCorrectOptionIndex());
     }
 
+    /** Correct only if the student picked exactly the right options: no more and no fewer. */
+    public boolean scoreChoices(String rollNo, Question question, List<Integer> chosenShuffledIndexes) {
+        if (!question.getType().isChoice()) {
+            throw new IllegalArgumentException("scoreChoices called on a typed question: " + question.getId());
+        }
+        return remapAll(rollNo, question, chosenShuffledIndexes).equals(question.getCorrectOptionIndexes());
+    }
+
+    /** The student's picks, un-shuffled to the real option numbers, sorted and without repeats. */
+    public List<Integer> remapAll(String rollNo, Question question, List<Integer> chosenShuffledIndexes) {
+        return chosenShuffledIndexes.stream()
+                .map(i -> randomisationService.remap(rollNo, question, i))
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     /**
      * The one rule for what an answer earns, used by the score sheet and analytics alike. Null means
      * "no mark yet": not answered, or a typed answer still waiting for the instructor. Late scores 0.

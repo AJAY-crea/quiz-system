@@ -898,3 +898,25 @@ window but does not close it, and makes a slow phone rescan. Every proxy join is
 **Result:** tests pass (new: `fasterRotationMakesAForwardedCodeExpireSooner`,
 `linkCanBePastedOnTheDashboardButOnlyAPlainHttpsOne`). **Untested:** reading the link from cloudflared.
 The assistant was not permitted to open a public tunnel from this session, so the team will run it.
+
+**Course topics used in prompt G:** role prompting (Module 2); test-first with a movable clock instead
+of sleeping (Module 5, dependency mocking); negative constraint, "only the laptop may set the link"
+(Module 2); the trade-off answered before any code, i.e. requirement critique (Module 8).
+
+### Generated prompt H — Ajay: questions with several correct answers
+**Course topics:** few-shot examples of the scoring rule (Module 2), chain-of-thought on edge cases
+(Module 2), test-first with hand-made fixtures (Module 5), refactoring without breaking callers (Module 4).
+> Act as a senior Java engineer extending a live system the night before it is used. Add a question
+> type MULTI ("several correct answers"). Scoring rule, by example:
+>   key {2, 5}; student ticks {2, 5} -> correct; {2} -> wrong (too few); {2, 4, 5} -> wrong (too many).
+> All or nothing, because partial credit needs a rule the professor hasn't chosen.
+> Think step by step through every place that assumes ONE correct option (grep for it): the key, the
+> stored answer, scoring, analytics option counts, the "more chose X" note, the answer-key fix, the
+> CSV format (`1;3`) and the dashboard. List them before changing any.
+> Constraints: new columns nullable, so the existing database updates. The existing one-answer `add`
+> keeps working for every current caller. A one-answer question given two keys is refused with a
+> message that names the other type. Tests first: exact-set scoring in the student's shuffled order,
+> bad keys, option counts, key fix, CSV.
+
+**Result:** tests pass (new: `SeveralCorrectAnswersTest` ×4). The student's side (checkboxes, and
+accepting the set) is Mukesh's prompt I, so a MULTI question can only be answered after that commit.

@@ -11,5 +11,14 @@ public record AddQuestionRequest(
         List<String> options,
         Integer correctOptionIndex,
         int durationSeconds,
-        Integer maxMarks) {
+        Integer maxMarks,
+        List<Integer> correctOptionIndexes) {
+
+    /** The key as a list: correctOptionIndexes for MULTI, or the single correctOptionIndex. */
+    public List<Integer> key() {
+        if (correctOptionIndexes != null) {
+            return correctOptionIndexes;
+        }
+        return correctOptionIndex == null ? List.of() : List.of(correctOptionIndex);
+    }
 }

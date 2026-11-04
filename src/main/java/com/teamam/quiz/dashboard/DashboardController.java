@@ -230,6 +230,6 @@ public class DashboardController {
                 q.getId(), q.getOrderIndex(), q.getType().name(), q.getText(), List.copyOf(q.getOptions()),
                 q.getCorrectOptionIndex(), q.getDurationSeconds() + q.getExtensionSeconds(), released,
                 responseRepository.countBySessionIdAndQuestionId(session.getId(), q.getId()), remainingMs,
-                q.getMaxMarks(), awaitingMarks);
+                q.getMaxMarks(), awaitingMarks, q.getCorrectOptionIndexes());
     }
 }

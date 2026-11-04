@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.List;
 
 @Entity
 @Table(name = "responses",
@@ -39,6 +40,10 @@ public class Response {
 
     /** Canonical option index (already remapped from the student's shuffled view). */
     private Integer selectedOptionIndex;
+
+    /** For MULTI: every option ticked (canonical numbers), e.g. "0,2". */
+    @Column(length = 200)
+    private String selectedOptionSet;
 
     @Column(length = 4000)
     private String typedAnswer;
@@ -85,6 +90,18 @@ public class Response {
 
     public void setSelectedOptionIndex(Integer selectedOptionIndex) {
         this.selectedOptionIndex = selectedOptionIndex;
+    }
+
+    /** The options chosen (canonical numbers): one for MCQ, any number for MULTI, none for typed. */
+    public List<Integer> getSelectedOptions() {
+        if (selectedOptionSet != null) {
+            return OptionSets.parse(selectedOptionSet);
+        }
+        return selectedOptionIndex == null ? List.of() : List.of(selectedOptionIndex);
+    }
+
+    public void setSelectedOptions(List<Integer> options) {
+        this.selectedOptionSet = OptionSets.format(options);
     }
 
     public String getTypedAnswer() {

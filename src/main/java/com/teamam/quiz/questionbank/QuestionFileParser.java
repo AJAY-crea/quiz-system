@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -14,14 +15,21 @@ import java.util.Locale;
  * Parses a question file, one question per line, with an optional header row:
  * type,seconds,marks,question,correct,option1,option2,...
  * MCQ,60,1,"Capital of India?",2,Mumbai,Delhi,Chennai   (correct counts from 1, as on the dashboard)
+ * MULTI,60,2,"Which are prime?",1;3,2,4,5               (several correct: separate them with ;)
  * TYPED,120,5,"Explain Ohm's law",,                     (no correct option or options)
  * A value containing a comma goes in double quotes. Errors name the line, so she can fix the file.
  */
 public final class QuestionFileParser {
 
-    /** One parsed line, ready for QuestionBankService. correctOptionIndex counts from 0. */
+    /** One parsed line, ready for QuestionBankService. Correct options count from 0. */
     public record ParsedQuestion(
-            QuestionType type, int durationSeconds, int maxMarks, String text, Integer correctOptionIndex, List<String> options) {
+            QuestionType type, int durationSeconds, int maxMarks, String text, List<Integer> correctOptionIndexes,
+            List<String> options) {
+
+        /** The single correct option, or null (typed questions). */
+        public Integer correctOptionIndex() {
+            return correctOptionIndexes.isEmpty() ? null : correctOptionIndexes.get(0);
+        }
     }
 
     private QuestionFileParser() {
@@ -61,7 +69,7 @@ public final class QuestionFileParser {
         try {
             type = QuestionType.valueOf(columns.get(0).toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("type must be MCQ or TYPED, not \"" + columns.get(0) + "\"");
+            throw new IllegalArgumentException("type must be MCQ, MULTI or TYPED, not \"" + columns.get(0) + "\"");
         }
         int seconds = number(columns.get(1), "seconds");
         int marks = number(columns.get(2), "marks");
@@ -73,13 +81,17 @@ public final class QuestionFileParser {
             throw new IllegalArgumentException("the question text is empty");
         }
         if (type == QuestionType.TYPED) {
-            return new ParsedQuestion(type, seconds, marks, text, null, List.of());
+            return new ParsedQuestion(type, seconds, marks, text, List.of(), List.of());
         }
         if (columns.size() < 5) {
             throw new IllegalArgumentException("a multiple-choice question needs a correct option number");
         }
         List<String> options = columns.subList(5, columns.size()).stream().filter(o -> !o.isEmpty()).toList();
-        return new ParsedQuestion(type, seconds, marks, text, number(columns.get(4), "correct") - 1, options);
+        List<Integer> correct = Arrays.stream(columns.get(4).split("[;\\s]+"))
+                .filter(part -> !part.isEmpty())
+                .map(part -> number(part, "correct") - 1)
+                .toList();
+        return new ParsedQuestion(type, seconds, marks, text, correct, options);
     }
 
     /** Reads a whole number, with a clear message if it isn't one. */

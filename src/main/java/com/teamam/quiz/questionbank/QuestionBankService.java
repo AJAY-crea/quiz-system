@@ -44,7 +44,7 @@ public class QuestionBankService {
         return add(sessionId, orderIndex, type, text, options, correctOptionIndex, durationSeconds, 1);
     }
 
-    /** Adds a question; an MCQ must have at least 2 options and a correct option that exists. */
+    /** Adds a question with at most one correct option (MCQ or typed). */
     @Transactional
     public Question add(
             Long sessionId,
@@ -55,6 +55,24 @@ public class QuestionBankService {
             Integer correctOptionIndex,
             int durationSeconds,
             int maxMarks) {
+        return addQuestion(sessionId, orderIndex, type, text, options,
+                correctOptionIndex == null ? List.of() : List.of(correctOptionIndex), durationSeconds, maxMarks);
+    }
+
+    /**
+     * Adds a question. A choice question needs at least 2 options and correct options that exist:
+     * exactly one for MCQ, one or more for MULTI.
+     */
+    @Transactional
+    public Question addQuestion(
+            Long sessionId,
+            int orderIndex,
+            QuestionType type,
+            String text,
+            List<String> options,
+            List<Integer> correctOptionIndexes,
+            int durationSeconds,
+            int maxMarks) {
         if (maxMarks < 1 || maxMarks > MAX_MARKS_LIMIT) {
             throw new IllegalArgumentException("a question must be worth between 1 and " + MAX_MARKS_LIMIT + " marks");
         }
@@ -62,20 +80,18 @@ public class QuestionBankService {
                 .findById(sessionId)
                 .orElseThrow(() -> new NoSuchElementException("session not found: " + sessionId));
 
-        if (type == QuestionType.MCQ) {
+        if (type.isChoice()) {
             if (options == null || options.size() < 2) {
-                throw new IllegalArgumentException("an MCQ question needs at least 2 options");
+                throw new IllegalArgumentException("a multiple-choice question needs at least 2 options");
             }
-            if (correctOptionIndex == null || correctOptionIndex < 0 || correctOptionIndex >= options.size()) {
-                throw new IllegalArgumentException("correctOptionIndex must point at one of the given options");
-            }
+            requireValidKey(type, options.size(), correctOptionIndexes);
         }
 
         Question question = new Question(session, orderIndex, type, text);
         if (options != null) {
             question.setOptions(options);
         }
-        question.setCorrectOptionIndex(correctOptionIndex);
+        question.setCorrectOptionIndexes(type.isChoice() ? correctOptionIndexes : List.of());
         question.setDurationSeconds(durationSeconds);
         question.setMaxMarks(maxMarks);
         return questionRepository.save(question);
@@ -88,7 +104,8 @@ public class QuestionBankService {
         for (QuestionFileParser.ParsedQuestion q : parsed) {
             order++;
             try {
-                add(sessionId, order, q.type(), q.text(), q.options(), q.correctOptionIndex(), q.durationSeconds(), q.maxMarks());
+                addQuestion(sessionId, order, q.type(), q.text(), q.options(), q.correctOptionIndexes(),
+                        q.durationSeconds(), q.maxMarks());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Question \"" + q.text() + "\": " + e.getMessage());
             }
@@ -116,23 +133,44 @@ public class QuestionBankService {
         }
     }
 
-    /** Fixes a wrong answer key, even after the quiz: every stored answer to the question is re-scored. */
+    /** Fixes a wrong answer key for a one-answer MCQ. */
     @Transactional
     public void changeAnswerKey(Long sessionId, Long questionId, int correctOptionIndex) {
+        changeAnswerKey(sessionId, questionId, List.of(correctOptionIndex));
+    }
+
+    /** Fixes a wrong answer key, even after the quiz: every stored answer to the question is re-scored. */
+    @Transactional
+    public void changeAnswerKey(Long sessionId, Long questionId, List<Integer> correctOptionIndexes) {
         Question question = questionRepository
                 .findById(questionId)
                 .filter(q -> q.getSession().getId().equals(sessionId))
                 .orElseThrow(() -> new NoSuchElementException("question not found: " + questionId));
-        if (question.getType() != QuestionType.MCQ) {
+        if (!question.getType().isChoice()) {
             throw new IllegalArgumentException("only multiple-choice questions have an answer key");
         }
-        if (correctOptionIndex < 0 || correctOptionIndex >= question.getOptions().size()) {
-            throw new IllegalArgumentException("correctOptionIndex must point at one of the question's options");
-        }
-        question.setCorrectOptionIndex(correctOptionIndex);
+        requireValidKey(question.getType(), question.getOptions().size(), correctOptionIndexes);
+        question.setCorrectOptionIndexes(correctOptionIndexes);
         questionRepository.save(question);
+        List<Integer> key = question.getCorrectOptionIndexes();
         List<Response> answers = responseRepository.findBySessionIdAndQuestionId(sessionId, questionId);
-        answers.forEach(r -> r.setCorrect(Integer.valueOf(correctOptionIndex).equals(r.getSelectedOptionIndex())));
+        answers.forEach(r -> r.setCorrect(r.getSelectedOptions().equals(key)));
         responseRepository.saveAll(answers);
+    }
+
+    /** The key must name existing options, without repeats: exactly one for MCQ, at least one for MULTI. */
+    private static void requireValidKey(QuestionType type, int optionCount, List<Integer> key) {
+        if (key == null || key.isEmpty()) {
+            throw new IllegalArgumentException("choose the correct option");
+        }
+        if (type == QuestionType.MCQ && key.size() != 1) {
+            throw new IllegalArgumentException("a one-answer question has exactly one correct option; use \"several correct answers\" for more");
+        }
+        if (key.stream().distinct().count() != key.size()) {
+            throw new IllegalArgumentException("the same correct option is listed twice");
+        }
+        if (key.stream().anyMatch(i -> i == null || i < 0 || i >= optionCount)) {
+            throw new IllegalArgumentException("correctOptionIndex must point at one of the given options");
+        }
     }
 }

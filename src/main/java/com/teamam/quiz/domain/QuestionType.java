@@ -1,7 +1,16 @@
 package com.teamam.quiz.domain;
 
-/** MCQ = auto-scored multiple choice; TYPED = free text reviewed by the instructor. */
+/**
+ * MCQ = one correct option; MULTI = several correct options, scored only if the student picks exactly
+ * those; both auto-scored. TYPED = free text marked by the instructor.
+ */
 public enum QuestionType {
     MCQ,
-    TYPED
+    TYPED,
+    MULTI;
+
+    /** Is this answered by choosing options (as opposed to typing)? */
+    public boolean isChoice() {
+        return this != TYPED;
+    }
 }
