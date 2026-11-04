@@ -1023,4 +1023,15 @@ through the tunnel), so either the scan happened before the restart, or Chrome d
 `SameSite=Strict` cookie on a page opened from another app (the camera's QR scanner). A link pasted into a
 Chrome tab counts as the same site, which is why that worked. Changed to `SameSite=Lax`: sent on a page
 opened from a link or another app, never with requests another website makes in the background. Every
-action is a POST/DELETE, so cross-site protection (CSRF) is kept. Not yet confirmed on the phone.
+action is a POST/DELETE, so cross-site protection (CSRF) is kept. After the restart, Ajay scanned the
+instructor QR with his phone and the dashboard opened (one phone so far; several phones still to try).
+
+**Prompt (verbatim):**
+> i think everything is working as intended i tried with one mobile , i have to try with multiple phones
+> and one thing i didnt get is this [Address in the QR / Internet link box] like what are they and also use
+> internet link like what is it , i press it ntg happens
+
+**Fix (a confusing screen, found by the user):** the paste box is only a backup for when the tunnel link isn't
+detected, and pressing it with an empty box silently cleared nothing. It is now behind "Internet link not
+in the list?", says what each kind of address is for, and refuses an empty box with a message. A page-only
+change: it reached the running dashboard on reload, with no restart, which also tested the live-fix path.

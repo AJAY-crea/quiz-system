@@ -628,10 +628,11 @@ $('code-period').addEventListener('change', (e) => run(async () => {
 
 $('save-public-url').addEventListener('click', () => run(async () => {
   const url = $('public-url').value.trim();
+  if (!url) throw new Error('Paste the https://….trycloudflare.com link first.');
   await api('POST', `/api/dashboard/public-url?url=${encodeURIComponent(url)}`);
   await loadAddresses();
   shownQrKey = null;
-  say(url ? 'Internet link saved: the QR now uses it, so phones on mobile data can join.' : 'Internet link removed.');
+  say('Internet link saved: the QR now uses it, so phones on mobile data can join.');
 }));
 
 $('remote-show').addEventListener('click', () => run(async () => {

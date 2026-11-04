@@ -163,10 +163,17 @@
           <select id="base-url" aria-label="Address in the QR"></select>
         </label>
       </div>
-      <div class="row">
-        <input id="public-url" placeholder="Internet link, e.g. https://….trycloudflare.com" aria-label="Internet link" style="flex:1 1 220px">
-        <button id="save-public-url" class="secondary">Use internet link</button>
-      </div>
+      <p class="muted">Students open this address. An <b>internet link</b> (https://…trycloudflare.com) works on any
+        network, mobile data included; a <b>192.168… / 10.…</b> address works only on the same Wi-Fi as this laptop.</p>
+      <details>
+        <summary class="muted">Internet link not in the list? Paste it here</summary>
+        <p class="muted">Copy the https://….trycloudflare.com link from the tunnel window. Not needed when it already
+          appears in the list above.</p>
+        <div class="row">
+          <input id="public-url" placeholder="https://….trycloudflare.com" aria-label="Internet link" style="flex:1 1 220px">
+          <button id="save-public-url" class="secondary">Save link</button>
+        </div>
+      </details>
       <div class="qr-box">
         <img id="qr" alt="QR code for students to join" hidden>
         <div id="code" class="code"></div>
