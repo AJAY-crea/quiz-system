@@ -1023,5 +1023,4 @@ through the tunnel), so either the scan happened before the restart, or Chrome d
 `SameSite=Strict` cookie on a page opened from another app (the camera's QR scanner). A link pasted into a
 Chrome tab counts as the same site, which is why that worked. Changed to `SameSite=Lax`: sent on a page
 opened from a link or another app, never with requests another website makes in the background. Every
-action is a POST/DELETE, so cross-site protection (CSRF) is kept. Confirmed on the phone after restart:
-see below.
+action is a POST/DELETE, so cross-site protection (CSRF) is kept. Not yet confirmed on the phone.
