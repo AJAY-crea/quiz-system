@@ -1012,3 +1012,16 @@ redirected to `http://…` instead of `https://…`, because Tomcat built the ad
 plain-http hop to the laptop. The https-only cookie would then not be sent, and the professor's phone would
 get "forbidden". The MockMvc test passed because it builds redirects differently. Fixed by sending a
 relative address. Lesson for the viva: the unit test checked our assumption; only the real path showed it was wrong.
+
+**Problem reported from the real phone (verbatim):**
+> ok when i point to my phone and scan that qr of the quiz dashboard its showing only avaibale to
+> instructor ,why is that like i mean how its deciding phone is not instructor and i can open that in my
+> another chrome tab with key , i am not getting this
+
+**Diagnosis:** the running app was already the fixed version (relative redirect and cookie both checked
+through the tunnel), so either the scan happened before the restart, or Chrome did not send the
+`SameSite=Strict` cookie on a page opened from another app (the camera's QR scanner). A link pasted into a
+Chrome tab counts as the same site, which is why that worked. Changed to `SameSite=Lax`: sent on a page
+opened from a link or another app, never with requests another website makes in the background. Every
+action is a POST/DELETE, so cross-site protection (CSRF) is kept. Confirmed on the phone after restart:
+see below.

@@ -81,9 +81,12 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
             return;
         }
         boolean https = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
-        // SameSite=Strict: another website can't make her browser send this cookie (no cross-site requests).
+        // SameSite=Lax: sent when she opens the dashboard from a link or another app (the phone camera's QR
+        // scanner counts as another app, and Strict was not sent there), but never with a request another
+        // website makes in the background, so another site still can't press the dashboard's buttons
+        // (every action is a POST/DELETE).
         response.addHeader("Set-Cookie", COOKIE + "=" + instructorKey.value() + "; Path=/; Max-Age=" + COOKIE_SECONDS
-                + "; HttpOnly; SameSite=Strict" + (https ? "; Secure" : ""));
+                + "; HttpOnly; SameSite=Lax" + (https ? "; Secure" : ""));
         response.setHeader("Cache-Control", "no-store");
         // A relative address on purpose: sendRedirect() would build "http://..." from the tunnel's plain-http
         // hop to this laptop, and the phone would then lose the https-only cookie.

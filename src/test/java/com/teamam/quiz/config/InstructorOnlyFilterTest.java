@@ -157,7 +157,7 @@ class InstructorOnlyFilterTest {
                 .andExpect(header().string("Location", "/instructor.html"))
                 .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
                         org.hamcrest.Matchers.containsString("HttpOnly"),
-                        org.hamcrest.Matchers.containsString("SameSite=Strict"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax"),
                         org.hamcrest.Matchers.containsString("Secure"))));
 
         Cookie herCookie = new Cookie(InstructorOnlyFilter.COOKIE, instructorKey.value());
