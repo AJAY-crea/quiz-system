@@ -1006,3 +1006,9 @@ edge cases tested first (Modules 4 and 5), responsible use and data protection (
   with the same roll number. Their earlier answers are kept, because answers belong to the roll number,
   but each is flagged "new phone", since a phone's saved data belongs to the old link. The professor
   needs the new instructor link too.
+
+**Bug found by testing through the real tunnel (not by the unit test):** opening the instructor link
+redirected to `http://…` instead of `https://…`, because Tomcat built the address from the tunnel's
+plain-http hop to the laptop. The https-only cookie would then not be sent, and the professor's phone would
+get "forbidden". The MockMvc test passed because it builds redirects differently. Fixed by sending a
+relative address. Lesson for the viva: the unit test checked our assumption; only the real path showed it was wrong.

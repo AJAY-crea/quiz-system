@@ -85,7 +85,10 @@ public class InstructorOnlyFilter extends OncePerRequestFilter {
         response.addHeader("Set-Cookie", COOKIE + "=" + instructorKey.value() + "; Path=/; Max-Age=" + COOKIE_SECONDS
                 + "; HttpOnly; SameSite=Strict" + (https ? "; Secure" : ""));
         response.setHeader("Cache-Control", "no-store");
-        response.sendRedirect("/instructor.html");
+        // A relative address on purpose: sendRedirect() would build "http://..." from the tunnel's plain-http
+        // hop to this laptop, and the phone would then lose the https-only cookie.
+        response.setStatus(HttpServletResponse.SC_FOUND);
+        response.setHeader("Location", "/instructor.html");
     }
 
     /** Did this browser open the instructor's link? */
