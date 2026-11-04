@@ -62,6 +62,13 @@ public class SessionController {
         return ResponseEntity.ok(Map.of("questionId", questionId, "deadline", deadline.toString()));
     }
 
+    /** Instructor makes an earlier question live again (only once the live one's time is over). */
+    @PostMapping("/{sessionId}/questions/{questionId}/reopen")
+    public ResponseEntity<QuestionView> reopen(
+            @PathVariable Long sessionId, @PathVariable Long questionId, @RequestParam(required = false) Integer seconds) {
+        return ResponseEntity.ok(QuestionView.of(sessionEngine.reopen(sessionId, questionId, seconds)));
+    }
+
     /** Instructor ends the session. */
     @PostMapping("/{sessionId}/end")
     public ResponseEntity<Map<String, String>> end(@PathVariable Long sessionId) {

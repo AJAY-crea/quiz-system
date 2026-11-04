@@ -61,12 +61,12 @@ public class SessionStateService {
             throw new NotAParticipantException("this device is not the one the roll number last joined from");
         }
 
-        if (session.getCurrentQuestionOrder() == 0) {
+        if (session.getLiveQuestionOrder() == 0) {
             return new SessionStateView(sessionId, session.getStatus().name(), null, null, false, List.of(), null);
         }
 
         Question question = questionRepository
-                .findBySessionIdAndOrderIndex(sessionId, session.getCurrentQuestionOrder())
+                .findBySessionIdAndOrderIndex(sessionId, session.getLiveQuestionOrder())
                 .orElseThrow(() -> new IllegalStateException("current question missing for session " + sessionId));
 
         long remainingMs = Math.max(

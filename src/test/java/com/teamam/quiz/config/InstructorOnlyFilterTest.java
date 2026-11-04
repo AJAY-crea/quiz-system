@@ -82,6 +82,8 @@ class InstructorOnlyFilterTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/sessions/1/end").with(FROM_A_STUDENT_PHONE))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/1/questions/1/reopen").with(FROM_A_STUDENT_PHONE))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/sessions/1/integrity-settings").param("enabled", "false").with(FROM_A_STUDENT_PHONE))
                 .andExpect(status().isForbidden());
         mockMvc.perform(delete("/api/sessions/1/integrity").with(FROM_A_STUDENT_PHONE))

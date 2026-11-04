@@ -76,6 +76,25 @@ public class TimingService {
         return deadlineOf(question);
     }
 
+    /** Instructor action: an earlier question is live again, so it closes `seconds` from now. */
+    @Transactional
+    public Instant reopen(Long questionId, int seconds) {
+        if (seconds < 5 || seconds > MAX_EXTENSION_SECONDS) {
+            throw new IllegalArgumentException("a reopened question must run for 5-" + MAX_EXTENSION_SECONDS + " seconds");
+        }
+        Question question = requireQuestion(questionId);
+        if (question.getReleasedAt() == null) {
+            throw new IllegalStateException("question " + question.getOrderIndex() + " has not been released yet");
+        }
+        // Like closeSoon: stored as an extension, so on-time checks and restart recovery work unchanged.
+        Instant target = Instant.now().plusSeconds(seconds);
+        long millisFromRelease = Duration.between(question.getReleasedAt(), target).toMillis();
+        long secondsFromRelease = (millisFromRelease + 999) / 1000;
+        question.setExtensionSeconds((int) secondsFromRelease - question.getDurationSeconds());
+        questionRepository.save(question);
+        return deadlineOf(question);
+    }
+
     /** Deadline for an already-loaded question; fails if it was never released. */
     private Instant deadlineOf(Question question) {
         Instant releasedAt = question.getReleasedAt();

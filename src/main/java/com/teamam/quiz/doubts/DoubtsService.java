@@ -73,9 +73,9 @@ public class DoubtsService {
             throw new DoubtRefusedException(
                     "You've sent " + MAX_PER_STUDENT + " doubts in this lecture; please ask the rest after class.");
         }
-        Question openQuestion = session.getCurrentQuestionOrder() == 0
+        Question openQuestion = session.getLiveQuestionOrder() == 0
                 ? null
-                : questionRepository.findBySessionIdAndOrderIndex(sessionId, session.getCurrentQuestionOrder())
+                : questionRepository.findBySessionIdAndOrderIndex(sessionId, session.getLiveQuestionOrder())
                         .orElse(null);
         doubtRepository.save(new Doubt(session, openQuestion, rollNo, trimmed));
     }

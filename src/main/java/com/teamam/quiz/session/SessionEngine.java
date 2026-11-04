@@ -65,6 +65,7 @@ public class SessionEngine {
         }
 
         session.setCurrentQuestionOrder(question.getOrderIndex());
+        session.setReopenedOrder(null);
         session.setStatus(SessionStatus.RUNNING);
         sessionRepository.save(session);
 
@@ -83,18 +84,50 @@ public class SessionEngine {
     @Transactional
     public void end(Long sessionId) {
         QuizSession session = requireSession(sessionId);
-        if (session.getCurrentQuestionOrder() > 0) {
-            Question current = questionRepository
-                    .findBySessionIdAndOrderIndex(sessionId, session.getCurrentQuestionOrder())
-                    .orElseThrow(() -> new IllegalStateException("current question missing for session " + sessionId));
-            if (Instant.now().isBefore(timingService.deadlineFor(current.getId()))) {
-                throw new IllegalStateException(
-                        "Question " + current.getOrderIndex() + " is still open. Close it first, or wait for its time to end.");
-            }
-        }
+        requireNoQuestionOpen(session);
         session.setStatus(SessionStatus.ENDED);
         sessionRepository.save(session);
         announce(sessionId, new SessionEvent(SessionEvent.ENDED, null));
+    }
+
+    /**
+     * Makes an already-released question live again, for `seconds` (default: its original time). Only
+     * once the live question's time is over, so nobody is cut off mid-answer. Answers already given are
+     * kept; while it is open a student may change a choice, and anyone who hadn't answered can answer.
+     * Releasing the next question afterwards carries on from where the session had got to.
+     */
+    @Transactional
+    public Question reopen(Long sessionId, Long questionId, Integer seconds) {
+        QuizSession session = requireSession(sessionId);
+        Question question = questionRepository
+                .findById(questionId)
+                .filter(q -> q.getSession().getId().equals(sessionId))
+                .orElseThrow(() -> new NoSuchElementException("question not found: " + questionId));
+        if (question.getReleasedAt() == null) {
+            throw new IllegalStateException("Question " + question.getOrderIndex()
+                    + " hasn't been released yet; use Release next question.");
+        }
+        requireNoQuestionOpen(session);
+        timingService.reopen(questionId, seconds == null ? question.getDurationSeconds() : seconds);
+        session.setReopenedOrder(question.getOrderIndex() == session.getCurrentQuestionOrder() ? null : question.getOrderIndex());
+        session.setStatus(SessionStatus.RUNNING);
+        sessionRepository.save(session);
+        announce(sessionId, new SessionEvent(SessionEvent.REOPENED, questionId));
+        return question;
+    }
+
+    /** Refuses while the live question still has time left. */
+    private void requireNoQuestionOpen(QuizSession session) {
+        if (session.getLiveQuestionOrder() == 0) {
+            return;
+        }
+        Question live = questionRepository
+                .findBySessionIdAndOrderIndex(session.getId(), session.getLiveQuestionOrder())
+                .orElseThrow(() -> new IllegalStateException("live question missing for session " + session.getId()));
+        if (Instant.now().isBefore(timingService.deadlineFor(live.getId()))) {
+            throw new IllegalStateException(
+                    "Question " + live.getOrderIndex() + " is still open. Close it first, or wait for its time to end.");
+        }
     }
 
     /** Tells every connected browser to refetch its state (e.g. after a deadline extension). */

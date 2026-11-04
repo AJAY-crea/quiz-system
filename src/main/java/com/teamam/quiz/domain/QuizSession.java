@@ -55,6 +55,9 @@ public class QuizSession {
     private Boolean integrityEnabled;
     private Integer codePeriodSeconds;
 
+    /** An earlier question the instructor made live again; null = the latest released one is live. */
+    private Integer reopenedOrder;
+
     protected QuizSession() {
     }
 
@@ -88,6 +91,19 @@ public class QuizSession {
 
     public void setCurrentQuestionOrder(int currentQuestionOrder) {
         this.currentQuestionOrder = currentQuestionOrder;
+    }
+
+    /**
+     * The question phones are shown: normally the latest released, or an earlier one the instructor
+     * made live again. currentQuestionOrder stays "how far we have released", for the next release
+     * and for attendance.
+     */
+    public int getLiveQuestionOrder() {
+        return reopenedOrder != null ? reopenedOrder : currentQuestionOrder;
+    }
+
+    public void setReopenedOrder(Integer reopenedOrder) {
+        this.reopenedOrder = reopenedOrder;
     }
 
     public Set<String> getRosterRollNumbers() {

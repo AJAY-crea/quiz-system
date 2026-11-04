@@ -12,4 +12,5 @@ public record SessionEvent(String type, Long questionId) {
     public static final String MARKS = "MARKS";
     public static final String CLOSING = "CLOSING";
     public static final String ENDED = "ENDED";
+    public static final String REOPENED = "REOPENED";
 }

@@ -1063,3 +1063,25 @@ teacher making an earlier question live again. The look-back list was removed be
 prompt M.
 
 **Result:** tests pass (new: `anUpvoteCanBeTakenBackOnce`; the filter test covers the new phone endpoint).
+
+### Generated prompt M — make an earlier question live again (Mukesh: session and timing; Ajay: dashboard)
+**Prompt (verbatim, the clarification)**
+> oh i mean not students can view the previous questions broo, like teacher can make previous questions
+> as the live question.
+
+**Course topics:** requirement clarification before building (Module 2: handling ambiguity), chain-of-thought
+over every place that assumes something (Module 2), test-first (Module 5), visual verification (Module 8).
+> Act as the session-engine owner. The teacher may make an already-released question live again, but only
+> once the live question's time is over. First list every place that treats "the latest released question"
+> as "the question phones are on" (grep), and split the two ideas: keep "how far we have released" for the
+> next release and attendance; add "the live question" for phones, the dashboard timer, end-of-session,
+> doubt tagging and students' marks. The new window must go through the same deadline (an extension), so
+> on-time checks and restart recovery need no new logic. Answers already given are kept; while it's open a
+> student may change a choice (latest tap wins), and anyone who hadn't answered can answer. Do NOT let a
+> reopen cut off an open question, and do NOT break the release order. Tests first.
+
+**Result:** tests pass (new: `anEarlierQuestionCanBeMadeLiveAgainOnceTheCurrentOneIsOver`; a phone can't
+reopen). Browser check, 37/37: "Make live again" on the dashboard put Q2 back on the phones with the saved
+tick, changeable; +30 s after time-up unlocked a saved choice; pressing an upvote again took it back.
+**Found only in the screenshot:** the reopened choice question still showed "Your answer: …" from the
+previous typed question. Fixed, then a check for it was added to the browser script.

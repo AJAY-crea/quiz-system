@@ -284,6 +284,7 @@ function render(state) {
   const entry = buffer.get(currentQuestion.id);
   if (isChoice(currentQuestion)) {
     // Choice questions stay on screen: the last tap before time is up is the answer.
+    showMyTypedAnswer(null);
     renderAnswerForm(entry ? chosenIn(entry.submission) : state.myChoice);
     showAnswerStatus(entry);
     updateChoiceLock();
