@@ -45,6 +45,19 @@ public class JoinWindowService {
         return statusOf(session);
     }
 
+    /** Instructor chooses how often the QR code changes (faster = a forwarded photo dies sooner). */
+    @Transactional
+    public JoinWindowStatus setCodePeriod(Long sessionId, int seconds) {
+        if (seconds < JoinCodes.MIN_PERIOD_SECONDS || seconds > JoinCodes.MAX_PERIOD_SECONDS) {
+            throw new IllegalArgumentException("the QR code must change every "
+                    + JoinCodes.MIN_PERIOD_SECONDS + "-" + JoinCodes.MAX_PERIOD_SECONDS + " seconds");
+        }
+        QuizSession session = requireSession(sessionId);
+        session.setCodePeriodSeconds(seconds);
+        sessionRepository.save(session);
+        return statusOf(session);
+    }
+
     /** Instructor closes joining now; existing students can still reconnect. */
     @Transactional
     public JoinWindowStatus close(Long sessionId) {
@@ -70,7 +83,7 @@ public class JoinWindowService {
         if (!isOpen(session, now)) {
             throw new JoinRefusedException("Joining is closed. Ask the instructor to open it.");
         }
-        if (!JoinCodes.isCodeValid(secretOf(session), sessionId, code, now)) {
+        if (!JoinCodes.isCodeValid(secretOf(session), sessionId, code, now, session.getCodePeriodSeconds())) {
             throw new JoinRefusedException("This QR code has expired. Scan the code on the screen again.");
         }
         return new JoinTicket(
@@ -89,14 +102,15 @@ public class JoinWindowService {
     private JoinWindowStatus statusOf(QuizSession session) {
         Instant now = clock.instant();
         if (!isOpen(session, now)) {
-            return new JoinWindowStatus(false, session.getJoinOpenUntil(), 0, null, 0);
+            return new JoinWindowStatus(false, session.getJoinOpenUntil(), 0, null, 0, session.getCodePeriodSeconds());
         }
         return new JoinWindowStatus(
                 true,
                 session.getJoinOpenUntil(),
                 Duration.between(now, session.getJoinOpenUntil()).toSeconds(),
-                JoinCodes.codeFor(secretOf(session), session.getId(), now),
-                Duration.between(now, JoinCodes.nextRotation(now)).toMillis());
+                JoinCodes.codeFor(secretOf(session), session.getId(), now, session.getCodePeriodSeconds()),
+                Duration.between(now, JoinCodes.nextRotation(now, session.getCodePeriodSeconds())).toMillis(),
+                session.getCodePeriodSeconds());
     }
 
     /** Joining is open if the end time is set and still in the future. */

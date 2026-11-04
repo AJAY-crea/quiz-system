@@ -13,14 +13,16 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * Rotating QR join codes and join tickets, as pure functions of (secret, session, time).
  *
- * A code is valid for its own 15 s slot and the one after it, so a forwarded photo of the QR goes
- * stale within ~30 s. Scanning exchanges the code for a ticket valid for 2 minutes, which is what
+ * A code is valid for its own slot (15 s by default; the instructor can choose 5-60 s) and the one
+ * after it, so a forwarded photo of the QR goes stale within two slots. Scanning exchanges the code for a ticket valid for 2 minutes, which is what
  * the join itself needs, so a slow typist isn't refused. Both are HMAC-SHA256 over a per-session
  * secret kept in the database: nothing is held in memory, so they survive an app restart.
  */
 public final class JoinCodes {
 
     public static final Duration CODE_PERIOD = Duration.ofSeconds(15);
+    public static final int MIN_PERIOD_SECONDS = 5;
+    public static final int MAX_PERIOD_SECONDS = 60;
     public static final Duration TICKET_TTL = Duration.ofMinutes(2);
 
     private static final int CODE_HEX_CHARS = 8;
@@ -37,24 +39,34 @@ public final class JoinCodes {
         return secret;
     }
 
-    /** The 8-character QR code for this session at this moment (changes every 15 s). */
+    /** The 8-character QR code for this session at this moment, with the default 15 s rotation. */
     public static String codeFor(byte[] secret, long sessionId, Instant at) {
-        return codeForSlot(secret, sessionId, slotOf(at));
+        return codeFor(secret, sessionId, at, CODE_PERIOD.toSeconds());
+    }
+
+    /** The 8-character QR code for this session at this moment (changes every periodSeconds). */
+    public static String codeFor(byte[] secret, long sessionId, Instant at, long periodSeconds) {
+        return codeForSlot(secret, sessionId, periodSeconds, at.getEpochSecond() / periodSeconds);
     }
 
     /** Is this scanned code from the current or previous 15-second slot? */
     public static boolean isCodeValid(byte[] secret, long sessionId, String code, Instant now) {
+        return isCodeValid(secret, sessionId, code, now, CODE_PERIOD.toSeconds());
+    }
+
+    /** Is this scanned code from the current or previous slot? */
+    public static boolean isCodeValid(byte[] secret, long sessionId, String code, Instant now, long periodSeconds) {
         if (code == null) {
             return false;
         }
-        long slot = slotOf(now);
-        return constantTimeEquals(code, codeForSlot(secret, sessionId, slot))
-                || constantTimeEquals(code, codeForSlot(secret, sessionId, slot - 1));
+        long slot = now.getEpochSecond() / periodSeconds;
+        return constantTimeEquals(code, codeForSlot(secret, sessionId, periodSeconds, slot))
+                || constantTimeEquals(code, codeForSlot(secret, sessionId, periodSeconds, slot - 1));
     }
 
     /** When the code shown right now stops being the current one (the next rotation). */
-    public static Instant nextRotation(Instant now) {
-        return Instant.ofEpochSecond((slotOf(now) + 1) * CODE_PERIOD.toSeconds());
+    public static Instant nextRotation(Instant now, long periodSeconds) {
+        return Instant.ofEpochSecond((now.getEpochSecond() / periodSeconds + 1) * periodSeconds);
     }
 
     /** Makes a 2-minute join ticket: its expiry time + a signature only the server can make. */
@@ -82,14 +94,15 @@ public final class JoinCodes {
                 && constantTimeEquals(ticket.substring(dot + 1), ticketMac(secret, sessionId, expiresAt));
     }
 
-    /** Which 15-second slot a moment falls in (time divided into 15 s blocks). */
-    private static long slotOf(Instant at) {
-        return at.getEpochSecond() / CODE_PERIOD.toSeconds();
-    }
-
-    /** The code for one slot: a signature of (session, slot), shortened. */
-    private static String codeForSlot(byte[] secret, long sessionId, long slot) {
-        return hmacHex(secret, "code:" + sessionId + ":" + slot).substring(0, CODE_HEX_CHARS).toUpperCase();
+    /**
+     * The code for one slot: a signature of (session, period, slot), shortened. The period is part of
+     * it, so slot numbers from different speeds never produce the same code.
+     */
+    private static String codeForSlot(byte[] secret, long sessionId, long periodSeconds, long slot) {
+        String message = periodSeconds == CODE_PERIOD.toSeconds()
+                ? "code:" + sessionId + ":" + slot
+                : "code:" + sessionId + ":" + periodSeconds + ":" + slot;
+        return hmacHex(secret, message).substring(0, CODE_HEX_CHARS).toUpperCase();
     }
 
     /** The signature part of a ticket, so nobody can edit the expiry. */

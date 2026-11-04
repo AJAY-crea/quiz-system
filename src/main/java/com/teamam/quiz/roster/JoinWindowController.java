@@ -25,6 +25,12 @@ public class JoinWindowController {
         return ResponseEntity.ok(joinWindowService.open(sessionId, seconds));
     }
 
+    /** Instructor sets how often the QR code changes. */
+    @PostMapping("/join-window/code-period")
+    public ResponseEntity<JoinWindowStatus> codePeriod(@PathVariable Long sessionId, @RequestParam int seconds) {
+        return ResponseEntity.ok(joinWindowService.setCodePeriod(sessionId, seconds));
+    }
+
     /** Instructor: close joining. */
     @PostMapping("/join-window/close")
     public ResponseEntity<JoinWindowStatus> close(@PathVariable Long sessionId) {

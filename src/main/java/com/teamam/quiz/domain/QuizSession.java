@@ -53,6 +53,7 @@ public class QuizSession {
     private Boolean marksVisibleToStudents;
     private Boolean doubtsShared;
     private Boolean integrityEnabled;
+    private Integer codePeriodSeconds;
 
     protected QuizSession() {
     }
@@ -125,6 +126,15 @@ public class QuizSession {
 
     public void setDoubtAuthorsVisible(boolean visible) {
         this.doubtAuthorsVisible = visible;
+    }
+
+    /** How often the join QR changes; null = the default 15 s. */
+    public int getCodePeriodSeconds() {
+        return codePeriodSeconds == null ? 15 : codePeriodSeconds;
+    }
+
+    public void setCodePeriodSeconds(int seconds) {
+        this.codePeriodSeconds = seconds;
     }
 
     /** On by default; the instructor can stop recording integrity signals (design doc risk #3). */

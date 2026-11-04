@@ -136,9 +136,23 @@
         <button id="close-join" class="secondary">Close</button>
       </div>
       <div class="row">
-        <label class="muted">Classroom address
-          <select id="base-url" aria-label="Classroom address"></select>
+        <label class="muted">QR changes every
+          <select id="code-period" aria-label="QR changes every">
+            <option value="5">5 s (strictest; slow phones may need to rescan)</option>
+            <option value="10">10 s</option>
+            <option value="15">15 s</option>
+            <option value="30">30 s</option>
+          </select>
         </label>
+      </div>
+      <div class="row">
+        <label class="muted">Address in the QR
+          <select id="base-url" aria-label="Address in the QR"></select>
+        </label>
+      </div>
+      <div class="row">
+        <input id="public-url" placeholder="Internet link, e.g. https://….trycloudflare.com" aria-label="Internet link" style="flex:1 1 220px">
+        <button id="save-public-url" class="secondary">Use internet link</button>
       </div>
       <div class="qr-box">
         <img id="qr" alt="QR code for students to join" hidden>

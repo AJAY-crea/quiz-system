@@ -33,6 +33,25 @@ class JoinWindowServiceTest {
         sessionId = sessionRepository.save(new QuizSession("join window test")).getId();
     }
 
+    // Guards against: a faster QR setting not actually shortening how long a forwarded code works.
+    @Test
+    void fasterRotationMakesAForwardedCodeExpireSooner() {
+        joinWindow.open(sessionId, 600);
+        JoinWindowStatus status = joinWindow.setCodePeriod(sessionId, 5);
+        assertThat(status.codePeriodSeconds()).isEqualTo(5);
+        assertThat(status.codeRotatesInMs()).isLessThanOrEqualTo(5000);
+        String photographed = status.code();
+
+        clock.advance(Duration.ofSeconds(7)); // the next slot: still accepted
+        assertThat(joinWindow.issueTicket(sessionId, photographed).ticket()).isNotBlank();
+        clock.advance(Duration.ofSeconds(5)); // two slots later: dead (at 15 s it would still work)
+        assertThatThrownBy(() -> joinWindow.issueTicket(sessionId, photographed))
+                .isInstanceOf(JoinRefusedException.class);
+
+        assertThatThrownBy(() -> joinWindow.setCodePeriod(sessionId, 2)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> joinWindow.setCodePeriod(sessionId, 120)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     // Guards against: phones getting a ticket before the instructor has opened joining.
     @Test
     void refusesTicketWhileClosed() {

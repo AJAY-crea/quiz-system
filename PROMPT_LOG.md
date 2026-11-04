@@ -852,3 +852,49 @@ the downloaded .xlsx has all four sheets. Every test named in design doc §3 now
 
 **Not done, because it needs real people:** the integrity calibration run, the stakeholder dry-run, and a
 test with real phones on a real network. "Phones" above are separate browser profiles on one laptop.
+
+---
+
+## 2026-11-04 — Before the real classroom test: open access, tap-to-save, several correct options (Ajay and Mukesh)
+
+**Prompt (verbatim)**
+> ohh godd we have less days until final end evalutaion ,so yeah we need to finalize these and first
+> thing is that tomorrrow i may go for real test of this so yeah , and also i thought to not use only
+> on same network thing like both prof and students , please chage code with that like anyone can
+> access , i think that rotating qr solves the students outside accessing like prof can reduce how
+> fast qr changes and yeah i think we can give that option right, is this a good tradeoff? and also
+> main thing is that during the question answering time i feel like when student presses 1 option for
+> options questions (i am assuming u implemented those subjective answers too for that we dont allow
+> scroing i guess becus its subective like whole session ?? no i think like we only score multiple
+> choice questions and also one more thing that add multiple options as correct to i guess , we can
+> add that also) and also when student presses option we save it like when times goes off we take
+> that selected once as answers and also i think these selecting options is obivous thing like we gonna
+> use same general trend like websites, and also u want to tell me more about this like where this can
+> go wrong , and also finally tell me how to host this i mean so that we can run it in class tmrw, so
+> anychanges to code also we should be able to commit then instanly and see chnages immediately like
+> while running if somethhings go wrong i will tell u and u can resolve there itself ,so what is best way then
+
+**Meta-prompt (assistant)**
+> Act as the engineer on call for tomorrow's live classroom test. For each request, first state the
+> trade-off and what can go wrong in a real lecture, then write a prompt with the tests to write
+> first. Prefer the change that keeps working if the network is bad. Anything that cannot be tested
+> tonight is reported as untested, not assumed.
+
+**Answer to "is the rotating QR enough?" (recorded before the code)**
+Opening the app to the internet does not let outsiders in on its own: a student must still scan a
+live code, be on the roster, and use the phone they joined with. The real gap is an accomplice in the
+room forwarding the code (or the typed code under the QR) in real time. A faster rotation narrows that
+window but does not close it, and makes a slow phone rescan. Every proxy join is still flagged
+(phone already used, roll number on a new phone). We accept this trade-off and keep the flags.
+
+### Generated prompt G — Ajay: QR speed, and the internet link without restarts
+> Act as the instructor's teaching assistant during setup. (1) Let the instructor choose how often the
+> QR changes (5-60 s, default 15, per session, stored so it survives a restart). Write the test first,
+> with a movable clock: at 5 s a photographed code must die two slots later, where at 15 s it would
+> still work. (2) Let the instructor paste the tunnel link on the dashboard (https only; no app restart).
+> Also read the link from a running cloudflared if it reports one. If it doesn't, nothing breaks.
+> Only the laptop may set the link.
+
+**Result:** tests pass (new: `fasterRotationMakesAForwardedCodeExpireSooner`,
+`linkCanBePastedOnTheDashboardButOnlyAPlainHttpsOne`). **Untested:** reading the link from cloudflared.
+The assistant was not permitted to open a public tunnel from this session, so the team will run it.

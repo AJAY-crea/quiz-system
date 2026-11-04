@@ -13,10 +13,15 @@ import com.teamam.quiz.roster.JoinWindowStatus;
 import com.teamam.quiz.session.SessionView;
 import com.teamam.quiz.timing.TimingService;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
@@ -33,6 +39,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,9 +53,16 @@ public class DashboardController {
 
     /**
      * Optional public link (e.g. a Cloudflare Tunnel https://….trycloudflare.com) so phones on mobile
-     * data can join; set with --quiz.public-url=... and offered first in the address list.
+     * data can join; set with --quiz.public-url=..., pasted on the dashboard, or read from a running
+     * cloudflared, and offered first in the address list.
      */
-    private final String publicUrl;
+    private volatile String publicUrl;
+
+    /** Where a quick tunnel started with "--metrics 127.0.0.1:20241" reports its own link. */
+    private final String tunnelInfoUrl;
+
+    private static final HttpClient TUNNEL_INFO = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(300)).build();
+    private static final Pattern TUNNEL_HOSTNAME = Pattern.compile("\"hostname\"\\s*:\\s*\"([A-Za-z0-9.\\-]+)\"");
 
     private static final Pattern PLAIN_BASE_URL = Pattern.compile("https?://[A-Za-z0-9.\\-]+(:\\d{1,5})?");
 
@@ -66,7 +80,9 @@ public class DashboardController {
             ResponseRepository responseRepository,
             JoinWindowService joinWindowService,
             TimingService timingService,
-            @Value("${quiz.public-url:}") String publicUrl) {
+            @Value("${quiz.public-url:}") String publicUrl,
+            @Value("${quiz.tunnel-info-url:http://127.0.0.1:20241/quicktunnel}") String tunnelInfoUrl) {
+        this.tunnelInfoUrl = tunnelInfoUrl;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.participantRepository = participantRepository;
@@ -147,10 +163,38 @@ public class DashboardController {
         }
         // The first entry becomes the default, so put the likeliest classroom network first.
         addresses.sort(Comparator.comparingInt(a -> classroomRank(a.get("adapter"), a.get("url"))));
-        if (PLAIN_BASE_URL.matcher(publicUrl).matches()) {
-            addresses.add(0, Map.of("url", publicUrl, "adapter", "Internet link: works on mobile data"));
+        String internet = PLAIN_BASE_URL.matcher(publicUrl).matches() ? publicUrl : runningTunnelLink();
+        if (internet != null) {
+            addresses.add(0, Map.of("url", internet, "adapter", "Internet link: works on mobile data"));
         }
         return addresses;
+    }
+
+    /** Instructor pastes (or clears, with an empty value) the internet link without restarting the app. */
+    @PostMapping("/api/dashboard/public-url")
+    public Map<String, String> setPublicUrl(@RequestParam String url) {
+        String trimmed = url.trim().replaceAll("/+$", "");
+        if (!trimmed.isEmpty() && !(trimmed.startsWith("https://") && PLAIN_BASE_URL.matcher(trimmed).matches())) {
+            throw new IllegalArgumentException("Paste the https:// link that cloudflared printed, e.g. https://some-words.trycloudflare.com");
+        }
+        publicUrl = trimmed;
+        return Map.of("publicUrl", trimmed);
+    }
+
+    /** The link of a quick tunnel running on this laptop, if cloudflared reports one; null otherwise. */
+    private String runningTunnelLink() {
+        try {
+            HttpResponse<String> info = TUNNEL_INFO.send(
+                    HttpRequest.newBuilder(URI.create(tunnelInfoUrl)).timeout(Duration.ofMillis(500)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            Matcher hostname = TUNNEL_HOSTNAME.matcher(info.body());
+            return info.statusCode() == 200 && hostname.find() ? "https://" + hostname.group(1) : null;
+        } catch (IOException | IllegalArgumentException e) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
     }
 
     /** Adapters made by VM/container software (VirtualBox, VMware, Hyper-V, WSL): phones can never reach them. */

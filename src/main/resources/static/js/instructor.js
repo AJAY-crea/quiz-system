@@ -178,6 +178,7 @@ function renderJoin(join) {
     shownQrKey = null;
     return;
   }
+  if (document.activeElement !== $('code-period')) $('code-period').value = String(join.codePeriodSeconds);
   const base = $('base-url').value;
   const key = `${join.code}|${base}`;
   if (key !== shownQrKey && base) {
@@ -604,6 +605,19 @@ $('doubts-authors').addEventListener('change', (e) => run(async () => {
 $('doubts-shared').addEventListener('change', (e) => run(async () => {
   await api('POST', `/api/sessions/${sessionId}/doubts-settings?shared=${e.target.checked}`);
   say(e.target.checked ? 'Students can see and upvote doubts.' : 'Doubts now go only to you; students no longer see them.');
+}));
+
+$('code-period').addEventListener('change', (e) => run(async () => {
+  await api('POST', `/api/sessions/${sessionId}/join-window/code-period?seconds=${e.target.value}`);
+  say(`The QR now changes every ${e.target.value} s. A photo of it stops working after about ${2 * e.target.value} s.`);
+}));
+
+$('save-public-url').addEventListener('click', () => run(async () => {
+  const url = $('public-url').value.trim();
+  await api('POST', `/api/dashboard/public-url?url=${encodeURIComponent(url)}`);
+  await loadAddresses();
+  shownQrKey = null;
+  say(url ? 'Internet link saved: the QR now uses it, so phones on mobile data can join.' : 'Internet link removed.');
 }));
 
 $('base-url').addEventListener('change', () => { shownQrKey = null; refresh(); });
