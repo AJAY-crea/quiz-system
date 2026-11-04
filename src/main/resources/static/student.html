@@ -98,10 +98,11 @@
         <div class="meta"><span id="question-number"></span><span id="countdown"></span></div>
         <p id="question-text" class="question-text"></p>
         <form id="answer-form">
+          <p id="choice-hint" class="hint" hidden></p>
           <div id="options"></div>
           <textarea id="typed" hidden maxlength="4000" placeholder="Type your answer"></textarea>
           <p id="typed-count" class="hint typed-count" hidden></p>
-          <button type="submit">Submit answer</button>
+          <button type="submit" id="submit-answer">Submit answer</button>
         </form>
         <p id="answer-status" class="status"></p>
         <button type="button" id="fullscreen" class="secondary">Full screen</button>

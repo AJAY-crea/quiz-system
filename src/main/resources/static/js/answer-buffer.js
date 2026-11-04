@@ -27,6 +27,18 @@ export class AnswerBuffer {
     return entry;
   }
 
+  // Choice questions: the newest tap replaces the older one, with a new submissionId and a bigger seq,
+  // so the server keeps the latest. The older one is no longer resent. seq only orders this phone's
+  // own taps (any clock is fine for that); whether it was on time is decided by the server.
+  choose(answer) {
+    const previous = this.entries[answer.questionId];
+    const seq = Math.max(Date.now(), (previous?.submission.seq ?? 0) + 1);
+    const entry = { submission: { ...answer, submissionId: randomId(), seq }, status: 'PENDING', ack: null };
+    this.entries[answer.questionId] = entry;
+    this.#write();
+    return entry;
+  }
+
   get(questionId) {
     return this.entries[questionId] ?? null;
   }

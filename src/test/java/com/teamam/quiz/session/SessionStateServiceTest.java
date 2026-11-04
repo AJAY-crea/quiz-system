@@ -62,4 +62,20 @@ class SessionStateServiceTest {
         assertThatThrownBy(() -> state.currentState(quiz.sessionId, rollNo, "dev-wrong"))
                 .isInstanceOf(NotAParticipantException.class);
     }
+
+    // Guards against: a reloaded page (or a cleared phone) showing no tick, so the student thinks their
+    // answer was lost, or ticking the wrong option because shuffles differ per student.
+    @Test
+    void showsTheStoredChoiceInTheStudentsOwnOrder() {
+        String rollNo = "CS23B209";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+        int positionOfC = state.currentState(quiz.sessionId, rollNo, TestQuiz.deviceOf(rollNo))
+                .currentQuestion().options().indexOf("C");
+        resilience.accept(quiz.sessionId, quiz.answer("s-209", rollNo, positionOfC));
+
+        SessionStateView view = state.currentState(quiz.sessionId, rollNo, TestQuiz.deviceOf(rollNo));
+
+        assertThat(view.alreadyAnswered()).isTrue();
+        assertThat(view.myChoice()).containsExactly(positionOfC);
+    }
 }

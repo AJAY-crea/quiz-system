@@ -88,7 +88,83 @@ class ResilienceServiceTest {
         assertThat(storedCount(quiz, rollNo)).isEqualTo(1);
     }
 
-    // Guards against: a student overwriting their first answer (the team decided first is final).
+    /** A tap on a choice question, as the phone sends it: with a seq ordering the student's taps. */
+    private static AnswerSubmission tap(TestQuiz quiz, String id, String rollNo, int shuffledIndex, long seq) {
+        return new AnswerSubmission(id, rollNo, TestQuiz.deviceOf(rollNo), quiz.questionId, shuffledIndex, null, null, seq);
+    }
+
+    // Guards against: a student who changes their mind before time is up being scored on the first tap.
+    @Test
+    void latestTapBeforeTheDeadlineIsTheAnswer() {
+        String rollNo = "CS23B111";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+
+        assertThat(resilience.accept(quiz.sessionId, tap(quiz, "t1", rollNo, 0, 1)).outcome()).isEqualTo(ACCEPTED);
+        AcceptResult change = resilience.accept(quiz.sessionId, tap(quiz, "t2", rollNo, 1, 2));
+
+        assertThat(change.outcome()).isEqualTo(ACCEPTED);
+        assertThat(storedCount(quiz, rollNo)).isEqualTo(1);
+        assertThat(stored(quiz, rollNo).getSubmissionId()).isEqualTo("t2");
+        assertThat(stored(quiz, rollNo).getAnswerSeq()).isEqualTo(2L);
+    }
+
+    // Guards against: a slow resend of an OLD tap arriving after a newer one and undoing it (the
+    // network reorders messages after a reconnect).
+    @Test
+    void anOlderTapArrivingLateCannotUndoANewerOne() {
+        String rollNo = "CS23B112";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+        resilience.accept(quiz.sessionId, tap(quiz, "t1", rollNo, 0, 1));
+        resilience.accept(quiz.sessionId, tap(quiz, "t3", rollNo, 2, 3));
+
+        AcceptResult stale = resilience.accept(quiz.sessionId, tap(quiz, "t2", rollNo, 1, 2));
+
+        assertThat(stale.outcome()).isEqualTo(DUPLICATE);
+        assertThat(stale.sameSubmission()).isTrue(); // the phone stops resending it
+        assertThat(stored(quiz, rollNo).getSubmissionId()).isEqualTo("t3");
+    }
+
+    // Guards against: changing an answer after time is up (the server's clock decides, not the phone).
+    @Test
+    void aChangeAfterTheDeadlineIsRefusedAndTheOnTimeAnswerStands() throws InterruptedException {
+        String rollNo = "CS23B113";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 1, rollNo);
+        resilience.accept(quiz.sessionId, tap(quiz, "t1", rollNo, 0, 1));
+        Thread.sleep(1000 + TimingService.GRACE_WINDOW.toMillis() + 300);
+
+        AcceptResult late = resilience.accept(quiz.sessionId, tap(quiz, "t2", rollNo, 1, 2));
+
+        assertThat(late.outcome()).isEqualTo(DUPLICATE);
+        assertThat(late.sameSubmission()).isFalse();
+        assertThat(stored(quiz, rollNo).getSubmissionId()).isEqualTo("t1");
+        assertThat(stored(quiz, rollNo).isOnTime()).isTrue();
+    }
+
+    // Guards against: several-answer questions being refused, or scored on the wrong set.
+    @Test
+    void severalAnswerQuestionAcceptsTheTickedSet() {
+        String rollNo = "CS23B114";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, rollNo);
+        Question multi = bank.addQuestion(quiz.sessionId, 2, QuestionType.MULTI, "Pick A and C",
+                TestQuiz.OPTIONS, List.of(0, 2), 60, 1);
+        ctx.getBean(com.teamam.quiz.session.SessionEngine.class).release(quiz.sessionId, multi.getId());
+        List<String> mine = ctx.getBean(com.teamam.quiz.questionbank.RandomisationService.class).shuffleFor(rollNo, multi);
+        List<Integer> aAndC = List.of(mine.indexOf("A"), mine.indexOf("C"));
+
+        AcceptResult result = resilience.accept(quiz.sessionId,
+                new AnswerSubmission("m1", rollNo, TestQuiz.deviceOf(rollNo), multi.getId(), null, null, aAndC, 1L));
+        AcceptResult empty = resilience.accept(quiz.sessionId,
+                new AnswerSubmission("m2", rollNo, TestQuiz.deviceOf(rollNo), multi.getId(), null, null, List.of(), 2L));
+
+        assertThat(result.outcome()).isEqualTo(ACCEPTED);
+        assertThat(empty.outcome()).isEqualTo(REJECTED);
+        Response saved = responses.findBySessionIdAndQuestionIdAndRollNo(quiz.sessionId, multi.getId(), rollNo).orElseThrow();
+        assertThat(saved.getSelectedOptions()).containsExactly(0, 2);
+        assertThat(saved.getCorrect()).isTrue();
+    }
+
+    // Guards against: a resent answer without a seq (a typed answer, or an older page) overwriting the
+    // first one: those stay "first answer stands".
     @Test
     void differentSecondAnswerIsDuplicateAndFirstStands() {
         String rollNo = "CS23B103";

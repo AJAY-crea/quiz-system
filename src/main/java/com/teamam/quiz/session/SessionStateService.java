@@ -11,7 +11,10 @@ import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.timing.TimingService;
 import java.time.Duration;
 import java.time.Instant;
+import com.teamam.quiz.domain.Response;
+import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +62,7 @@ public class SessionStateService {
         }
 
         if (session.getCurrentQuestionOrder() == 0) {
-            return new SessionStateView(sessionId, session.getStatus().name(), null, null, false);
+            return new SessionStateView(sessionId, session.getStatus().name(), null, null, false, List.of());
         }
 
         Question question = questionRepository
@@ -68,8 +71,11 @@ public class SessionStateService {
 
         long remainingMs = Math.max(
                 0, Duration.between(Instant.now(), timingService.deadlineFor(question.getId())).toMillis());
-        boolean alreadyAnswered =
-                responseRepository.existsBySessionIdAndQuestionIdAndRollNo(sessionId, question.getId(), rollNo);
+        List<Integer> stored = responseRepository
+                .findBySessionIdAndQuestionIdAndRollNo(sessionId, question.getId(), rollNo)
+                .map(Response::getSelectedOptions)
+                .orElse(null);
+        boolean alreadyAnswered = stored != null;
 
         StudentQuestionView view = new StudentQuestionView(
                 question.getId(),
@@ -79,6 +85,18 @@ public class SessionStateService {
                 randomisationService.shuffleFor(rollNo, question),
                 question.getDurationSeconds() + question.getExtensionSeconds());
 
-        return new SessionStateView(sessionId, session.getStatus().name(), view, remainingMs, alreadyAnswered);
+        return new SessionStateView(
+                sessionId, session.getStatus().name(), view, remainingMs, alreadyAnswered, myChoice(rollNo, question, stored));
+    }
+
+    /** Where the stored options sit in this student's shuffled view (empty if none). */
+    private List<Integer> myChoice(String rollNo, Question question, List<Integer> stored) {
+        if (stored == null || stored.isEmpty()) {
+            return List.of();
+        }
+        return IntStream.range(0, question.getOptions().size())
+                .filter(position -> stored.contains(randomisationService.remap(rollNo, question, position)))
+                .boxed()
+                .toList();
     }
 }

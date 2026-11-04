@@ -13,6 +13,7 @@ import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.scoring.ScoringService;
 import com.teamam.quiz.timing.TimingService;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,7 +24,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Single entry point for every incoming answer. Idempotent: a resend of an answer that was
- * already stored returns DUPLICATE instead of storing it twice.
+ * already stored returns DUPLICATE instead of storing it twice. On a choice question the student
+ * may change their mind until the deadline: a newer tap (bigger seq) replaces the stored one. A
+ * typed answer is final once sent.
  *
  * Must not be called inside an outer transaction: the insert commits in its own transaction so
  * a unique-constraint violation can be caught here and turned into DUPLICATE.
@@ -88,7 +91,7 @@ public class ResilienceService {
         // Fast path for the common resend case. Not the real guard: two copies can both pass this check.
         Optional<Response> alreadyStored = findStored(sessionId, submission);
         if (alreadyStored.isPresent()) {
-            return duplicateOf(alreadyStored.get(), submission);
+            return changeOrDuplicate(alreadyStored.get(), response, submission);
         }
 
         try {
@@ -96,10 +99,40 @@ public class ResilienceService {
         } catch (DataIntegrityViolationException raceLost) {
             // The real guard: the (session, question, roll_no) unique constraint rejected a concurrent copy.
             return findStored(sessionId, submission)
-                    .map(stored -> duplicateOf(stored, submission))
+                    .map(stored -> changeOrDuplicate(stored, response, submission))
                     .orElseThrow(() -> raceLost);
         }
         return AcceptResult.accepted(submission.submissionId(), response.isOnTime());
+    }
+
+    /**
+     * An answer is already stored. If this is a newer tap on a choice question, arriving on time while
+     * the stored one is on time too, it replaces it. Otherwise the stored answer stands (DUPLICATE).
+     */
+    private AcceptResult changeOrDuplicate(Response stored, Response incoming, AnswerSubmission s) {
+        boolean canChange = incoming.getQuestion().getType().isChoice()
+                && s.seq() != null
+                && incoming.isOnTime()
+                && stored.isOnTime()
+                && !Objects.equals(stored.getSubmissionId(), s.submissionId());
+        if (canChange) {
+            Integer changed = insertTransaction.execute(status -> responseRepository.changeChoice(
+                    stored.getId(),
+                    incoming.getSelectedOptionIndex(),
+                    incoming.getQuestion().getType() == QuestionType.MULTI
+                            ? com.teamam.quiz.domain.OptionSets.format(incoming.getSelectedOptions())
+                            : null,
+                    incoming.getCorrect(),
+                    s.submissionId(),
+                    incoming.getSubmittedAt(),
+                    s.seq()));
+            if (changed != null && changed == 1) {
+                return AcceptResult.accepted(s.submissionId(), true);
+            }
+            // A newer tap is already stored; this one is outdated. Tell the phone to stop resending it.
+            return AcceptResult.duplicate(s.submissionId(), true, true);
+        }
+        return duplicateOf(stored, s);
     }
 
     /** All the checks (right phone, released question, valid option) and builds the answer row to save. */
@@ -137,6 +170,18 @@ public class ResilienceService {
             }
             response.setSelectedOptionIndex(randomisationService.remap(s.rollNo(), question, chosen));
             response.setCorrect(scoringService.scoreMcq(s.rollNo(), question, chosen));
+            response.setAnswerSeq(s.seq());
+        } else if (question.getType() == QuestionType.MULTI) {
+            List<Integer> chosen = s.chosenIndexes();
+            if (chosen == null || chosen.isEmpty()) {
+                throw new Rejection("tick at least one option");
+            }
+            if (chosen.stream().anyMatch(i -> i == null || i < 0 || i >= question.getOptions().size())) {
+                throw new Rejection("chosen option is out of range");
+            }
+            response.setSelectedOptions(scoringService.remapAll(s.rollNo(), question, chosen));
+            response.setCorrect(scoringService.scoreChoices(s.rollNo(), question, chosen));
+            response.setAnswerSeq(s.seq());
         } else {
             String typed = s.typedAnswer();
             if (typed == null || typed.isBlank()) {

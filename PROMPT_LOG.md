@@ -920,3 +920,33 @@ of sleeping (Module 5, dependency mocking); negative constraint, "only the lapto
 
 **Result:** tests pass (new: `SeveralCorrectAnswersTest` ×4). The student's side (checkboxes, and
 accepting the set) is Mukesh's prompt I, so a MULTI question can only be answered after that commit.
+
+### Generated prompt I — Mukesh: tapping an option saves it; the last tap before time is up counts
+**Course topics:** chain-of-thought over failure paths (Module 2), negative prompting (Module 2), handling
+edge cases and robustness testing through prompts (Module 4), test-first (Module 5).
+> Act as a distributed-systems reviewer who assumes the classroom network reorders and repeats messages.
+> Change choice questions (one or several answers) so a tap saves straight away and the student can
+> change it until the deadline, like any quiz website. There is no Submit button. Typed answers stay
+> "first answer is final".
+> Reason first about the orders messages can arrive in: tap A, tap B, then a resend of A arriving last.
+> The newest tap must win, so each tap carries a number that only grows (seq), and the database replaces
+> the stored answer only if the new seq is bigger, in a single conditional UPDATE so two taps can't race.
+> seq orders taps only; it is NOT a time: on-time is still decided by the server's clock alone
+> (design doc §2 row 3). A change after the deadline is refused and the on-time answer stands.
+> Do not break the existing guarantee: one row per student per question (DB unique constraint), and a
+> resend without a seq (older page, typed answer) never overwrites.
+> A reloaded page must show the saved tick, in the student's own shuffled order (ask the server).
+> Several correct answers: checkboxes; an empty set is not an answer.
+> Tests first: newest tap wins; an older tap arriving last can't undo it; change after deadline refused;
+> several-answer set stored and scored; reload shows the tick.
+
+**Result:** tests pass (new: `latestTapBeforeTheDeadlineIsTheAnswer`,
+`anOlderTapArrivingLateCannotUndoANewerOne`, `aChangeAfterTheDeadlineIsRefusedAndTheOnTimeAnswerStands`,
+`severalAnswerQuestionAcceptsTheTickedSet`, `showsTheStoredChoiceInTheStudentsOwnOrder`). Browser check
+with scripted phones: 33/33, including tap-without-submit, change then reload shows the newer tick, the
+checkbox question scored on the exact set, and choices locked once time is up. One earlier run stopped
+partway without reporting, cause not found; the clean re-run passed.
+
+**Design change, recorded honestly:** the mid-evaluation practice change "latest answer wins" was reverted
+then. It is now adopted for choice questions only, deliberately, with ordering protection the practice
+version did not have.

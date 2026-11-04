@@ -56,6 +56,9 @@ public class Response {
     /** MCQ correctness; null for typed answers awaiting instructor review. Late answers keep it but are excluded from scoring. */
     private Boolean correct;
 
+    /** Order of the student's taps on a choice question; a change replaces the stored one only if bigger. */
+    private Long answerSeq;
+
     /** Marks the instructor gave a typed answer; null until marked. Not used for MCQ. */
     private Double awardedMarks;
 
@@ -142,6 +145,14 @@ public class Response {
 
     public void setCorrect(Boolean correct) {
         this.correct = correct;
+    }
+
+    public Long getAnswerSeq() {
+        return answerSeq;
+    }
+
+    public void setAnswerSeq(Long answerSeq) {
+        this.answerSeq = answerSeq;
     }
 
     public Double getAwardedMarks() {

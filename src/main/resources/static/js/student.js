@@ -255,7 +255,7 @@ function forgetIdentityAndRejoin(sessionId) {
   location.replace(location.pathname + query);
 }
 
-// Draw the current question, the timer, and either the answer form or the answer status.
+// Draw the current question, the timer, and the answer form or the answer status.
 function render(state) {
   currentQuestion = state.currentQuestion;
   clearInterval(countdownTimer);
@@ -276,24 +276,44 @@ function render(state) {
   $('question').hidden = false;
   $('question-number').textContent = `Question ${currentQuestion.orderIndex}`;
   $('question-text').textContent = currentQuestion.text;
+  savedOnServer = state.alreadyAnswered;
   startCountdown(state.remainingMs);
   keepScreenAwake();
 
   const entry = buffer.get(currentQuestion.id);
+  if (isChoice(currentQuestion)) {
+    // Choice questions stay on screen: the last tap before time is up is the answer.
+    renderAnswerForm(entry ? chosenIn(entry.submission) : state.myChoice);
+    showAnswerStatus(entry);
+    lockChoicesIfTimeIsUp();
+    return;
+  }
   if (entry || state.alreadyAnswered) {
     $('answer-form').hidden = true;
     showAnswerStatus(entry);
     return;
   }
-  renderAnswerForm();
+  renderAnswerForm([]);
 }
 
 // Which question the form on screen belongs to. A refresh (+30 s, a reconnect, marks published) can
 // arrive while a student is mid-sentence, and redrawing the form must never wipe what they've written.
 let renderedFormFor = null;
 let autoSubmittedFor = null;
+let savedOnServer = false; // the server already holds an answer to the current question
 
-// Where the unsubmitted answer is kept on the phone, so even a page reload or dead battery loses nothing.
+// Answered by tapping options (one, or several), not by typing.
+function isChoice(question) {
+  return question.type === 'MCQ' || question.type === 'MULTI';
+}
+
+// The options picked in a stored submission, in this student's order.
+function chosenIn(submission) {
+  if (submission.chosenIndexes) return submission.chosenIndexes;
+  return submission.chosenIndex === undefined || submission.chosenIndex === null ? [] : [submission.chosenIndex];
+}
+
+// Where the unsent typed answer is kept on the phone, so even a page reload or dead battery loses nothing.
 function draftKey() {
   return `quiz:${identity.sessionId}:${identity.rollNo}:draft`;
 }
@@ -308,48 +328,50 @@ function readDraft(questionId) {
   }
 }
 
-// Save what's on the form right now.
+// Save what's typed right now.
 function saveDraft() {
-  const chosen = document.querySelector('input[name="choice"]:checked');
-  safeSet(draftKey(), JSON.stringify({
-    questionId: currentQuestion.id,
-    typed: $('typed').value,
-    chosen: chosen ? Number(chosen.value) : null,
-  }));
+  safeSet(draftKey(), JSON.stringify({ questionId: currentQuestion.id, typed: $('typed').value }));
 }
 
-// Draw the options (in this student's order) or the typed-answer box, restoring any draft.
-function renderAnswerForm() {
+// Draw the options (in this student's order, ticked as last saved) or the typed-answer box.
+function renderAnswerForm(chosen) {
   const form = $('answer-form');
   if (renderedFormFor === currentQuestion.id && !form.hidden) return;
   renderedFormFor = currentQuestion.id;
 
   const options = $('options');
-  const draft = readDraft(currentQuestion.id);
   options.replaceChildren();
   form.hidden = false;
   $('answer-status').textContent = '';
 
-  if (currentQuestion.type === 'MCQ') {
+  if (isChoice(currentQuestion)) {
+    const several = currentQuestion.type === 'MULTI';
     $('typed').hidden = true;
     $('typed-count').hidden = true;
     $('typed').value = '';
+    $('submit-answer').hidden = true;
+    $('choice-hint').hidden = false;
+    $('choice-hint').textContent = several
+      ? 'Tick every correct option. Each tap is saved, and you can change it until time is up.'
+      : 'Tap your answer. It is saved straight away, and you can change it until time is up.';
     currentQuestion.options.forEach((text, index) => {
       const label = document.createElement('label');
       label.className = 'option';
-      const radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = 'choice';
-      radio.value = String(index);
-      radio.checked = draft.chosen === index;
-      radio.addEventListener('change', saveDraft);
-      label.append(radio, document.createTextNode(' ' + text));
+      const input = document.createElement('input');
+      input.type = several ? 'checkbox' : 'radio';
+      input.name = 'choice';
+      input.value = String(index);
+      input.checked = chosen.includes(index);
+      input.addEventListener('change', saveChoice);
+      label.append(input, document.createTextNode(' ' + text));
       options.append(label);
     });
   } else {
+    $('submit-answer').hidden = false;
+    $('choice-hint').hidden = true;
     $('typed').hidden = false;
     $('typed-count').hidden = false;
-    $('typed').value = draft.typed ?? '';
+    $('typed').value = readDraft(currentQuestion.id).typed ?? '';
     showTypedCount();
   }
 }
@@ -364,27 +386,45 @@ $('typed').addEventListener('input', () => {
   showTypedCount();
 });
 
-// Submit: store the answer on the phone first, then send it.
+// A tap on an option: save it on the phone and send it now. A newer tap replaces the older one.
+function saveChoice() {
+  const picked = [...document.querySelectorAll('input[name="choice"]:checked')].map((input) => Number(input.value));
+  const answer = { rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId: currentQuestion.id };
+  if (currentQuestion.type === 'MULTI') {
+    if (!picked.length) {
+      const before = buffer.get(currentQuestion.id) || savedOnServer;
+      $('answer-status').textContent = before ? 'Tick at least one option. Your last saved choice still counts.' : '';
+      return;
+    }
+    answer.chosenIndexes = picked;
+  } else {
+    answer.chosenIndex = picked[0];
+  }
+  showAnswerStatus(buffer.choose(answer));
+  resendPending();
+}
+
+// When time is up, a choice that was saved can no longer be changed. With nothing saved, a late
+// answer is still allowed: it is marked late, but it shows the student was there.
+function lockChoicesIfTimeIsUp() {
+  if (!currentQuestion || !isChoice(currentQuestion) || Date.now() < questionClosesAt) return;
+  if (!buffer.get(currentQuestion.id) && !savedOnServer) return;
+  for (const input of document.querySelectorAll('input[name="choice"]')) input.disabled = true;
+}
+
+// Submit (typed answers): store the answer on the phone first, then send it.
 function submitAnswer(event) {
   event.preventDefault();
   sendCurrentAnswer();
 }
 
-// Sends what's on the form, if anything. Returns whether it sent.
+// Sends what's typed, if anything. Returns whether it sent. A typed answer is final once sent.
 function sendCurrentAnswer() {
-  const answer = { rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId: currentQuestion.id };
-
-  if (currentQuestion.type === 'MCQ') {
-    const chosen = document.querySelector('input[name="choice"]:checked');
-    if (!chosen) return false;
-    answer.chosenIndex = Number(chosen.value);
-  } else {
-    const typed = $('typed').value.trim();
-    if (!typed) return false;
-    answer.typedAnswer = typed;
-  }
-
-  const entry = buffer.add(answer);
+  const typed = $('typed').value.trim();
+  if (!typed) return false;
+  const entry = buffer.add({
+    rollNo: identity.rollNo, deviceToken: identity.deviceToken, questionId: currentQuestion.id, typedAnswer: typed,
+  });
   $('answer-form').hidden = true;
   renderedFormFor = null;
   showAnswerStatus(entry);
@@ -392,29 +432,45 @@ function sendCurrentAnswer() {
   return true;
 }
 
-// Time is nearly up and the answer is written but not submitted: send it, so the student doesn't get
-// nothing for forgetting to press the button. Early enough to arrive before the deadline.
+// Time is nearly up and the typed answer is written but not submitted: send it, so the student doesn't
+// get nothing for forgetting to press the button. Early enough to arrive before the deadline.
+// (Choice questions don't need this: every tap is already sent.)
 function submitIfTimeIsEnding() {
-  if ($('question').hidden || $('answer-form').hidden || !currentQuestion) return;
+  if ($('question').hidden || $('answer-form').hidden || !currentQuestion || isChoice(currentQuestion)) return;
   if (sendCurrentAnswer()) {
     autoSubmittedFor = currentQuestion.id;
     showAnswerStatus(buffer.get(currentQuestion.id));
   }
 }
 
-// Turn the server's reply into a message: saved / late / first answer stands / not accepted.
+// Turn the server's reply into a message for the student.
 function showAnswerStatus(entry) {
   const status = $('answer-status');
-  if (!entry || entry.status === 'PENDING') {
-    status.textContent = entry ? 'Sending… (kept on this phone until the server confirms)' : 'Answer recorded.';
+  const choice = currentQuestion && isChoice(currentQuestion);
+  const timeLeft = Date.now() < questionClosesAt;
+  if (!entry) {
+    if (!savedOnServer) status.textContent = '';
+    else status.textContent = choice && timeLeft ? 'Your answer is saved. Tap another option to change it.' : 'Answer recorded.';
+    return;
+  }
+  if (entry.status === 'PENDING') {
+    status.textContent = 'Sending… (kept on this phone until the server confirms)';
     return;
   }
   const ack = entry.ack;
   if (ack.outcome === 'ACCEPTED') {
-    const saved = autoSubmittedFor === currentQuestion?.id ? 'Time ran out, so your answer was sent for you ✓' : 'Answer saved ✓';
-    status.textContent = ack.onTime ? saved : 'Saved, but after the deadline — it is marked late.';
+    if (!ack.onTime) {
+      status.textContent = 'Saved, but after the deadline — it is marked late.';
+    } else if (choice) {
+      status.textContent = timeLeft ? 'Saved ✓ You can change it until time is up.' : 'Saved ✓';
+    } else {
+      status.textContent = autoSubmittedFor === currentQuestion?.id ? 'Time ran out, so your answer was sent for you ✓' : 'Answer saved ✓';
+    }
   } else if (ack.outcome === 'DUPLICATE') {
-    status.textContent = ack.sameSubmission ? 'Answer saved ✓' : 'You had already answered this question; your first answer stands.';
+    if (ack.sameSubmission) status.textContent = 'Answer saved ✓';
+    else status.textContent = choice
+      ? 'Time was up, so your earlier choice counts.'
+      : 'You had already answered this question; your first answer stands.';
   } else {
     status.textContent = `Not accepted: ${ack.reason}`;
   }
@@ -430,7 +486,10 @@ function startCountdown(remainingMs) {
     const secondsLeft = Math.max(0, Math.ceil(msLeft / 1000));
     $('countdown').textContent = secondsLeft > 0 ? `${secondsLeft}s left` : 'Time is up';
     if (msLeft > 0 && msLeft <= AUTO_SUBMIT_MS) submitIfTimeIsEnding();
-    if (secondsLeft === 0) letScreenSleep();
+    if (secondsLeft === 0) {
+      letScreenSleep();
+      lockChoicesIfTimeIsUp();
+    }
   };
   tick();
   countdownTimer = setInterval(tick, 250);
