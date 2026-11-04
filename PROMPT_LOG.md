@@ -950,3 +950,16 @@ partway without reporting, cause not found; the clean re-run passed.
 **Design change, recorded honestly:** the mid-evaluation practice change "latest answer wins" was reverted
 then. It is now adopted for choice questions only, deliberately, with ordering protection the practice
 version did not have.
+
+### Generated prompt J — Ajay: running tomorrow's class, and fixing it live
+**Course topics:** AI failure scenarios with fallback strategies (Module 8), hybrid human + AI workflow
+(Module 8: the team runs the tunnel and the class; the assistant patches), documentation (Module 5).
+> Act as the on-call engineer for a live lecture. One command must start everything. Pages must reach
+> phones the moment they are fixed (no stale cached scripts, through Cloudflare too). A Java fix must
+> mean a 15-second restart that keeps the same public link and loses no answers. On Windows a running
+> jar is locked, so run a copy and keep the build free. Keep tomorrow's data in its own database.
+> Verify by starting the script, loading both pages, and rebuilding while it runs.
+
+**Result:** script started the app (both pages 200); rebuilding while it ran succeeded; pages are served
+with `Cache-Control: no-cache`. **Not verified:** the tunnel itself. The assistant was not permitted to
+open one, so the first real tunnel run is the team's.

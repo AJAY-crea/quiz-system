@@ -62,6 +62,26 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
 Students need nothing installed. On the same Wi-Fi (or the laptop's hotspot), no internet is needed:
 everything is served by the laptop.
 
+### Running a real class (one command)
+
+```
+powershell -ExecutionPolicy Bypass -File scriptsun-class.ps1 -Tunnel
+```
+
+This starts the app with its own database (`data/class`) and opens a Cloudflare quick tunnel in a second
+window, so students on **any** network (mobile data, other Wi-Fi) can join. The tunnel's https link
+appears first in "Address in the QR" on the dashboard, or paste it into "Internet link". Without
+`-Tunnel`, only phones on the laptop's network can join.
+
+Fixing things during a class:
+- **Page or script (HTML/JS):** edit the file; phones get it on their next reload. No restart.
+- **Java:** run `.\mvnw.cmd -q -DskipTests package`, press Ctrl+C in the app window and run the script
+  again **without** `-Tunnel` (the tunnel keeps running, so the link stays the same). Phones reconnect by
+  themselves; answers wait on the phones meanwhile, and nothing in the database is lost.
+
+The QR changes every 15 s by default; "QR changes every" on the dashboard sets 5-30 s. Faster makes a
+forwarded photo of the QR die sooner, but a slow phone may need to scan again.
+
 ### Students on mobile data (optional internet link)
 Phones on mobile data can't reach a laptop's local address. A free Cloudflare quick tunnel gives the
 laptop a public `https://` link (the laptop needs internet):
