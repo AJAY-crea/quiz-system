@@ -97,6 +97,18 @@
     </div>
   </header>
   <p id="status"></p>
+  <details id="remote" class="card">
+    <summary><b>Run this dashboard from another phone or laptop</b> <span class="muted">(e.g. the professor's)</span></summary>
+    <p class="muted">Open this link on that device, or scan the QR with its camera. Anyone with this link controls the
+      quiz, so share it only with the instructor and <b>don't show it on the projector</b>. To cancel every link,
+      delete <code>instructor.key</code> in the data folder and restart the app.</p>
+    <div class="row"><button id="remote-show" class="secondary">Show the link</button></div>
+    <div id="remote-box" hidden>
+      <p><code id="remote-link"></code></p>
+      <p id="remote-local" class="pending-note" hidden>No internet link yet: this works only on the same network as this laptop.</p>
+      <img id="remote-qr" alt="QR code of the instructor link" style="width:220px;background:#fff;border-radius:8px">
+    </div>
+  </details>
 
   <section class="grid" id="panels" hidden>
     <div class="card">

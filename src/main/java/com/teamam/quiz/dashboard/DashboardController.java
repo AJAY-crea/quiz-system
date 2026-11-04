@@ -1,5 +1,6 @@
 package com.teamam.quiz.dashboard;
 
+import com.teamam.quiz.config.InstructorKey;
 import com.teamam.quiz.domain.Participant;
 import com.teamam.quiz.domain.Question;
 import com.teamam.quiz.domain.QuestionType;
@@ -72,6 +73,7 @@ public class DashboardController {
     private final ResponseRepository responseRepository;
     private final JoinWindowService joinWindowService;
     private final TimingService timingService;
+    private final InstructorKey instructorKey;
 
     public DashboardController(
             QuizSessionRepository sessionRepository,
@@ -80,9 +82,11 @@ public class DashboardController {
             ResponseRepository responseRepository,
             JoinWindowService joinWindowService,
             TimingService timingService,
+            InstructorKey instructorKey,
             @Value("${quiz.public-url:}") String publicUrl,
             @Value("${quiz.tunnel-info-url:http://127.0.0.1:20241/quicktunnel}") String tunnelInfoUrl) {
         this.tunnelInfoUrl = tunnelInfoUrl;
+        this.instructorKey = instructorKey;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.participantRepository = participantRepository;
@@ -168,6 +172,27 @@ public class DashboardController {
             addresses.add(0, Map.of("url", internet, "adapter", "Internet link: works on mobile data"));
         }
         return addresses;
+    }
+
+    /**
+     * The instructor's own link, to run this dashboard from her phone or laptop: the internet link if
+     * there is one (works from anywhere), else the first classroom address.
+     */
+    @GetMapping("/api/dashboard/instructor-link")
+    public Map<String, String> instructorLink(HttpServletRequest request) throws SocketException {
+        List<Map<String, String>> addresses = hostAddresses(request);
+        String base = addresses.isEmpty() ? "http://localhost:" + request.getLocalPort() : addresses.get(0).get("url");
+        return Map.of("link", base + "/instructor.html?key=" + instructorKey.value(),
+                "internet", String.valueOf(base.startsWith("https://")));
+    }
+
+    /** The same link as a QR code, so she can open it by pointing her phone camera at this screen. */
+    @GetMapping(value = "/api/dashboard/instructor-qr.svg")
+    public ResponseEntity<String> instructorQr(HttpServletRequest request) throws SocketException {
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf("image/svg+xml"))
+                .cacheControl(CacheControl.noStore())
+                .body(QrSvg.svg(QrSvg.matrix(instructorLink(request).get("link"))));
     }
 
     /** Instructor pastes (or clears, with an empty value) the internet link without restarting the app. */

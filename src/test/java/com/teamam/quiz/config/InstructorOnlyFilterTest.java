@@ -3,9 +3,11 @@ package com.teamam.quiz.config;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -140,6 +142,38 @@ class InstructorOnlyFilterTest {
         mockMvc.perform(get("/api/sessions/999/state").param("rollNo", "A").param("deviceToken", "d")
                         .with(FROM_A_STUDENT_PHONE))
                 .andExpect(status().isNotFound());
+    }
+
+    @Autowired
+    private InstructorKey instructorKey;
+
+    // Guards against: the professor being unable to run the quiz from her own phone through the
+    // internet link, the key staying visible in the address bar, or a wrong/guessed key getting in.
+    @Test
+    void instructorLinkLetsHerInFromAnotherDeviceAndNobodyElse() throws Exception {
+        mockMvc.perform(get("/instructor.html").param("key", instructorKey.value()).with(FROM_A_PHONE_THROUGH_A_TUNNEL)
+                        .header("X-Forwarded-Proto", "https"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/instructor.html"))
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("SameSite=Strict"),
+                        org.hamcrest.Matchers.containsString("Secure"))));
+
+        Cookie herCookie = new Cookie(InstructorOnlyFilter.COOKIE, instructorKey.value());
+        mockMvc.perform(get("/instructor.html").cookie(herCookie).with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/sessions/999/questions/1/release").cookie(herCookie).with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isNotFound()); // reached the controller: session 999 doesn't exist
+
+        mockMvc.perform(get("/instructor.html").param("key", "guess").with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/sessions/999/questions/1/release")
+                        .cookie(new Cookie(InstructorOnlyFilter.COOKIE, "guess")).with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
+        // The database console stays laptop-only even for her: it can read and change everything.
+        mockMvc.perform(get("/h2-console").cookie(herCookie).with(FROM_A_PHONE_THROUGH_A_TUNNEL))
+                .andExpect(status().isForbidden());
     }
 
     // Guards against: locking the instructor out of her own laptop.

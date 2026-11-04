@@ -963,3 +963,46 @@ version did not have.
 **Result:** script started the app (both pages 200); rebuilding while it ran succeeded; pages are served
 with `Cache-Control: no-cache`. **Not verified:** the tunnel itself. The assistant was not permitted to
 open one, so the first real tunnel run is the team's.
+
+### 2026-11-04 (later) — The professor runs it from her own device; what happens if things restart (Ajay)
+
+**Prompt (verbatim)**
+> ok i ran the command u gave me so it [cloudflared output pasted] ,so yeah running this made this live
+> and what links will open instructor's thing so he / she can open like she should be able to run it from
+> her laptop/phone and not from my laptop right , and also what happens if something goes wrong in middle
+> like tunnel goes down and would restarting it will continue i think no right ? like we need to give a
+> option like weather to continue before sessions which ran or smtg like that
+
+**Checked before changing code (the tunnel the team started):** cloudflared reports its link on
+127.0.0.1:20241/quicktunnel, so the dashboard's automatic detection (untested in prompt G) works.
+Through the public link: the student page loads (200), and the instructor page and database console
+are refused (403). A phone's WebSocket gets STOMP CONNECTED in about 0.6 s. cloudflared's pre-check found
+one of Cloudflare's two regions unreachable on port 7844 from this network: the tunnel works, but with
+fewer backup routes.
+
+### Generated prompt K — Ajay: a secret instructor link
+**Course topics:** role prompting as an attacker (Module 2), negative prompting (Module 2), security
+edge cases tested first (Modules 4 and 5), responsible use and data protection (Module 7).
+> Act as a security reviewer. "Instructor = this laptop" must become "this laptop, or a browser that
+> opened the instructor's secret link", so the professor can run the dashboard from her own phone or
+> laptop through the internet link. Think like a student who wants control: guessing the key, finding it
+> in the address bar on the projector or in history, a malicious site making her browser send requests,
+> a cookie with a wrong value. Design: a 256-bit random key kept in a file (survives restarts; delete it to
+> cancel every link); opening the link sets an HttpOnly, SameSite=Strict cookie (Secure over https) and
+> redirects to the plain address so the key leaves the address bar; constant-time comparison. Do NOT let
+> the link open the H2 database console. The dashboard shows the link and a QR only on request, with a
+> warning not to project it. Tests first for each attack above.
+> Also: when the dashboard reopens after a restart, say plainly that the running session continues.
+
+**Result:** tests pass (new: `instructorLinkLetsHerInFromAnotherDeviceAndNobodyElse`).
+
+**What happens if something restarts (answer recorded for the viva):**
+- *The app restarts, same tunnel:* everything continues. The session, questions, answers and deadlines
+  are in the database file. The dashboard reopens the last session and says "Continuing session…".
+  Phones reconnect by themselves and resend anything unconfirmed. If a question's time ran out during
+  the restart, use +30 s.
+- *The tunnel drops briefly:* cloudflared reconnects by itself and the link stays the same.
+- *The tunnel window is closed or crashes:* a new link. Students scan the new QR (open joining again)
+  with the same roll number. Their earlier answers are kept, because answers belong to the roll number,
+  but each is flagged "new phone", since a phone's saved data belongs to the old link. The professor
+  needs the new instructor link too.

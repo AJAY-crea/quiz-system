@@ -64,9 +64,14 @@ async function loadSessions() {
   select.replaceChildren(new Option('Choose a session…', ''));
   for (const s of sessions) select.append(new Option(`#${s.id} · ${s.title}`, s.id));
   const remembered = localStorage.getItem('quiz:instructor-session');
-  if (remembered && sessions.some((s) => String(s.id) === remembered)) {
+  const resumed = sessions.find((s) => String(s.id) === remembered);
+  if (resumed) {
     select.value = remembered;
     selectSession(remembered);
+    if (resumed.status === 'RUNNING') {
+      say(`Continuing session #${resumed.id} (${resumed.title}): ${resumed.currentQuestionOrder} question(s) released so far. `
+        + 'Everything so far is saved; release the next question when ready.');
+    }
   }
 }
 
@@ -627,6 +632,17 @@ $('save-public-url').addEventListener('click', () => run(async () => {
   await loadAddresses();
   shownQrKey = null;
   say(url ? 'Internet link saved: the QR now uses it, so phones on mobile data can join.' : 'Internet link removed.');
+}));
+
+$('remote-show').addEventListener('click', () => run(async () => {
+  const shown = !$('remote-box').hidden;
+  $('remote-box').hidden = shown;
+  $('remote-show').textContent = shown ? 'Show the link' : 'Hide the link';
+  if (shown) return;
+  const remote = await api('GET', '/api/dashboard/instructor-link');
+  $('remote-link').textContent = remote.link;
+  $('remote-local').hidden = remote.internet === 'true';
+  $('remote-qr').src = `/api/dashboard/instructor-qr.svg?v=${Date.now()}`;
 }));
 
 $('base-url').addEventListener('change', () => { shownQrKey = null; refresh(); });

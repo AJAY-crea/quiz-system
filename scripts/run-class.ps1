@@ -40,4 +40,5 @@ Write-Host "Instructor dashboard: http://localhost:$Port/instructor.html   (Ctrl
 java -jar target\run\quiz-system.jar `
     "--server.port=$Port" `
     "--spring.datasource.url=jdbc:h2:file:$Database;AUTO_SERVER=TRUE" `
+    "--quiz.instructor-key-file=$(Split-Path $Database)/instructor.key" `
     "--spring.web.resources.static-locations=file:src/main/resources/static/"
