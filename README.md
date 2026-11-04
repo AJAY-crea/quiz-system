@@ -65,7 +65,7 @@ everything is served by the laptop.
 ### Running a real class (one command)
 
 ```
-powershell -ExecutionPolicy Bypass -File scriptsun-class.ps1 -Tunnel
+powershell -ExecutionPolicy Bypass -File scripts\run-class.ps1 -Tunnel
 ```
 
 This starts the app with its own database (`data/class`) and opens a Cloudflare quick tunnel in a second
