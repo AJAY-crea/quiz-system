@@ -245,7 +245,7 @@ public class DashboardController {
     private DashboardView.QuestionRow questionRow(QuizSession session, Question q) {
         boolean released = q.getReleasedAt() != null;
         Long remainingMs = null;
-        if (released && q.getOrderIndex() == session.getCurrentQuestionOrder()) {
+        if (released && q.getOrderIndex() == session.getLiveQuestionOrder()) {
             remainingMs = Math.max(0, Duration.between(Instant.now(), timingService.deadlineFor(q.getId())).toMillis());
         }
         long awaitingMarks = q.getType() == QuestionType.TYPED

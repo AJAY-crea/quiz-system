@@ -212,6 +212,18 @@ function renderQuestions(questions) {
     }
     tr.append(state, cell(q.released ? `${q.answered} / ${dashboard.joined}` : '—'));
     const actions = document.createElement('td');
+    if (q.released && !(q === current && q.remainingMs > 0)) {
+      const again = document.createElement('button');
+      again.className = 'secondary';
+      again.textContent = 'Make live again';
+      again.disabled = Boolean(current && current.remainingMs > 0);
+      again.title = again.disabled ? 'Wait until the open question\'s time is over' : `Open Q${q.orderIndex} again for ${q.durationSeconds} s`;
+      again.addEventListener('click', () => run(async () => {
+        await api('POST', `/api/sessions/${sessionId}/questions/${q.id}/reopen`);
+        say(`Question ${q.orderIndex} is live again. Answers already given are kept; students can change a choice while it's open.`);
+      }));
+      actions.append(again);
+    }
     if (!q.released) {
       const remove = document.createElement('button');
       remove.className = 'secondary';

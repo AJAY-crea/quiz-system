@@ -67,8 +67,8 @@ public class MyMarksService {
             if (q.getReleasedAt() == null) {
                 continue;
             }
-            // Phones only show the current question, so an earlier one is over even if its timer hasn't run out.
-            boolean current = q.getOrderIndex() == session.getCurrentQuestionOrder();
+            // Phones only show the live question, so any other is over even if its timer hasn't run out.
+            boolean current = q.getOrderIndex() == session.getLiveQuestionOrder();
             if (current && now.isBefore(timingService.deadlineFor(q.getId()))) {
                 continue;
             }
