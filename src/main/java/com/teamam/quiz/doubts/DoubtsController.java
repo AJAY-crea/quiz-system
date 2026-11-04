@@ -53,6 +53,14 @@ public class DoubtsController {
         return Map.of("status", "counted");
     }
 
+    /** Phone takes back its upvote. */
+    @PostMapping("/api/sessions/{sessionId}/doubts/{doubtId}/unvote")
+    public Map<String, String> unvote(
+            @PathVariable Long sessionId, @PathVariable Long doubtId, @RequestBody UpvoteRequest request) {
+        doubtsService.removeUpvote(sessionId, doubtId, request.rollNo(), request.deviceToken());
+        return Map.of("status", "removed");
+    }
+
     /** Instructor: the doubts panel. */
     @GetMapping("/api/sessions/{sessionId}/doubts")
     public DoubtsPanel list(@PathVariable Long sessionId) {

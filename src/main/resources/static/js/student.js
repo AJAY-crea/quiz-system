@@ -277,6 +277,7 @@ function render(state) {
   $('question-number').textContent = `Question ${currentQuestion.orderIndex}`;
   $('question-text').textContent = currentQuestion.text;
   savedOnServer = state.alreadyAnswered;
+  savedTypedAnswer = state.myTypedAnswer;
   startCountdown(state.remainingMs);
   keepScreenAwake();
 
@@ -285,15 +286,23 @@ function render(state) {
     // Choice questions stay on screen: the last tap before time is up is the answer.
     renderAnswerForm(entry ? chosenIn(entry.submission) : state.myChoice);
     showAnswerStatus(entry);
-    lockChoicesIfTimeIsUp();
+    updateChoiceLock();
     return;
   }
   if (entry || state.alreadyAnswered) {
     $('answer-form').hidden = true;
     showAnswerStatus(entry);
+    showMyTypedAnswer(entry ? entry.submission.typedAnswer : state.myTypedAnswer);
     return;
   }
+  showMyTypedAnswer(null);
   renderAnswerForm([]);
+}
+
+// After sending a typed answer the box goes away, so show the student what they sent.
+function showMyTypedAnswer(text) {
+  $('my-typed').hidden = !text;
+  $('my-typed-text').textContent = text ?? '';
 }
 
 // Which question the form on screen belongs to. A refresh (+30 s, a reconnect, marks published) can
@@ -301,6 +310,7 @@ function render(state) {
 let renderedFormFor = null;
 let autoSubmittedFor = null;
 let savedOnServer = false; // the server already holds an answer to the current question
+let savedTypedAnswer = null; // what the server holds for the current typed question
 
 // Answered by tapping options (one, or several), not by typing.
 function isChoice(question) {
@@ -404,12 +414,14 @@ function saveChoice() {
   resendPending();
 }
 
-// When time is up, a choice that was saved can no longer be changed. With nothing saved, a late
-// answer is still allowed: it is marked late, but it shows the student was there.
-function lockChoicesIfTimeIsUp() {
-  if (!currentQuestion || !isChoice(currentQuestion) || Date.now() < questionClosesAt) return;
-  if (!buffer.get(currentQuestion.id) && !savedOnServer) return;
-  for (const input of document.querySelectorAll('input[name="choice"]')) input.disabled = true;
+// When time is up, a choice that was saved can no longer be changed; when the instructor gives more
+// time (+30 s) it can again. With nothing saved, a late answer is still allowed: it is marked late,
+// but it shows the student was there.
+function updateChoiceLock() {
+  if (!currentQuestion || !isChoice(currentQuestion)) return;
+  const answered = Boolean(buffer.get(currentQuestion.id)) || savedOnServer;
+  const locked = answered && Date.now() >= questionClosesAt;
+  for (const input of document.querySelectorAll('input[name="choice"]')) input.disabled = locked;
 }
 
 // Submit (typed answers): store the answer on the phone first, then send it.
@@ -428,6 +440,7 @@ function sendCurrentAnswer() {
   $('answer-form').hidden = true;
   renderedFormFor = null;
   showAnswerStatus(entry);
+  showMyTypedAnswer(typed);
   resendPending();
   return true;
 }
@@ -481,14 +494,17 @@ function startCountdown(remainingMs) {
   // Display only: the server alone decides whether an answer is on time.
   const endsAt = performance.now() + remainingMs;
   questionClosesAt = Date.now() + remainingMs;
+  let timeUpHandled = false;
   const tick = () => {
     const msLeft = endsAt - performance.now();
     const secondsLeft = Math.max(0, Math.ceil(msLeft / 1000));
     $('countdown').textContent = secondsLeft > 0 ? `${secondsLeft}s left` : 'Time is up';
     if (msLeft > 0 && msLeft <= AUTO_SUBMIT_MS) submitIfTimeIsEnding();
-    if (secondsLeft === 0) {
+    if (secondsLeft === 0 && !timeUpHandled) {
+      timeUpHandled = true;
       letScreenSleep();
-      lockChoicesIfTimeIsUp();
+      updateChoiceLock();
+      showAnswerStatus(buffer.get(currentQuestion.id));
     }
   };
   tick();
@@ -677,17 +693,22 @@ function doubtItem(doubt) {
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = `▲ ${doubt.upvotes}`;
-  button.disabled = doubt.mine || doubt.upvotedByMe;
-  button.setAttribute('aria-label', `Upvote, ${doubt.upvotes} so far`);
-  button.addEventListener('click', () => upvoteDoubt(doubt.id, button));
+  button.disabled = doubt.mine;
+  button.className = doubt.upvotedByMe ? 'upvoted' : '';
+  button.setAttribute('aria-pressed', String(doubt.upvotedByMe));
+  button.setAttribute('aria-label', doubt.upvotedByMe
+    ? `You upvoted this (${doubt.upvotes}). Press again to take it back`
+    : `Upvote, ${doubt.upvotes} so far`);
+  button.addEventListener('click', () => upvoteDoubt(doubt.id, button, doubt.upvotedByMe));
   li.append(text, button);
   return li;
 }
 
-// Send an upvote, then redraw so the count and order are the server's.
-async function upvoteDoubt(doubtId, button) {
+// Send an upvote (or take it back if already given), then redraw so the count and order are the server's.
+async function upvoteDoubt(doubtId, button, alreadyUpvoted) {
   button.disabled = true;
-  await fetch(`/api/sessions/${encodeURIComponent(identity.sessionId)}/doubts/${doubtId}/upvote`, {
+  const action = alreadyUpvoted ? 'unvote' : 'upvote';
+  await fetch(`/api/sessions/${encodeURIComponent(identity.sessionId)}/doubts/${doubtId}/${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rollNo: identity.rollNo, deviceToken: identity.deviceToken }),

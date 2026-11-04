@@ -1035,3 +1035,31 @@ instructor QR with his phone and the dashboard opened (one phone so far; several
 detected, and pressing it with an empty box silently cleared nothing. It is now behind "Internet link not
 in the list?", says what each kind of address is for, and refuses an empty box with a message. A page-only
 change: it reached the running dashboard on reload, with no restart, which also tested the live-fix path.
+
+### 2026-11-04 (night) — Fixes from trying it on phones (Mukesh; Ajay typing, Mukesh present)
+
+**Prompt (verbatim)**
+> and also ppl cant modify the answers they put and also i think they cant see answersthey pressed when
+> the time for a questions ends and put +30 after , pls look into this and also i think its better we can
+> have like moving back to previous questions too (only when present question time ends), what do u say??
+> and also ppl can down vote if they up voted a doubt too,
+
+**Generated prompt L** (course topics: debugging with AI by reading the code path before guessing, Module 4;
+negative prompting, Module 2)
+> Act as the developer of the student page. Trace exactly what happens to a choice question when time
+> runs out and the instructor then presses +30 s, before changing anything. Fix the cause, not the symptom.
+> Let a student take back an upvote (removing it lowers the count once, and only if it existed). After a
+> typed answer is sent, show the student what they sent. Do NOT make typed answers editable the night
+> before a demo that has no typed questions.
+
+**Cause found by reading the code (the bug was real):** at time-up the saved choice is locked. +30 s
+redraws the question, but the form is deliberately not rebuilt (so a half-typed answer isn't wiped),
+so nothing took the lock off. The server would have accepted the change. Fixed: the lock is worked out
+again on every refresh and tick: locked only while time is up *and* an answer is saved.
+
+A misunderstanding, recorded honestly: the assistant first read "moving back to previous questions" as
+students looking back at their own answers, and built that. The user then clarified that they meant the
+teacher making an earlier question live again. The look-back list was removed before committing; see
+prompt M.
+
+**Result:** tests pass (new: `anUpvoteCanBeTakenBackOnce`; the filter test covers the new phone endpoint).

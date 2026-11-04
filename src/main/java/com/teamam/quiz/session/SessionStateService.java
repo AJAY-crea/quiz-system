@@ -3,6 +3,7 @@ package com.teamam.quiz.session;
 import com.teamam.quiz.domain.Participant;
 import com.teamam.quiz.domain.Question;
 import com.teamam.quiz.domain.QuizSession;
+import com.teamam.quiz.domain.Response;
 import com.teamam.quiz.questionbank.RandomisationService;
 import com.teamam.quiz.repository.ParticipantRepository;
 import com.teamam.quiz.repository.QuestionRepository;
@@ -11,7 +12,6 @@ import com.teamam.quiz.repository.ResponseRepository;
 import com.teamam.quiz.timing.TimingService;
 import java.time.Duration;
 import java.time.Instant;
-import com.teamam.quiz.domain.Response;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.IntStream;
@@ -62,7 +62,7 @@ public class SessionStateService {
         }
 
         if (session.getCurrentQuestionOrder() == 0) {
-            return new SessionStateView(sessionId, session.getStatus().name(), null, null, false, List.of());
+            return new SessionStateView(sessionId, session.getStatus().name(), null, null, false, List.of(), null);
         }
 
         Question question = questionRepository
@@ -71,11 +71,10 @@ public class SessionStateService {
 
         long remainingMs = Math.max(
                 0, Duration.between(Instant.now(), timingService.deadlineFor(question.getId())).toMillis());
-        List<Integer> stored = responseRepository
+        Response mine = responseRepository
                 .findBySessionIdAndQuestionIdAndRollNo(sessionId, question.getId(), rollNo)
-                .map(Response::getSelectedOptions)
                 .orElse(null);
-        boolean alreadyAnswered = stored != null;
+        boolean alreadyAnswered = mine != null;
 
         StudentQuestionView view = new StudentQuestionView(
                 question.getId(),
@@ -86,7 +85,9 @@ public class SessionStateService {
                 question.getDurationSeconds() + question.getExtensionSeconds());
 
         return new SessionStateView(
-                sessionId, session.getStatus().name(), view, remainingMs, alreadyAnswered, myChoice(rollNo, question, stored));
+                sessionId, session.getStatus().name(), view, remainingMs, alreadyAnswered,
+                myChoice(rollNo, question, mine == null ? null : mine.getSelectedOptions()),
+                mine == null ? null : mine.getTypedAnswer());
     }
 
     /** Where the stored options sit in this student's shuffled view (empty if none). */

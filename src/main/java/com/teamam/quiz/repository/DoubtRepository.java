@@ -21,4 +21,9 @@ public interface DoubtRepository extends JpaRepository<Doubt, Long> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Doubt d set d.upvotes = d.upvotes + 1 where d.id = :doubtId")
     void addUpvote(@Param("doubtId") Long doubtId);
+
+    /** Takes one away in the database itself (never below 0). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Doubt d set d.upvotes = d.upvotes - 1 where d.id = :doubtId and d.upvotes > 0")
+    void removeUpvote(@Param("doubtId") Long doubtId);
 }

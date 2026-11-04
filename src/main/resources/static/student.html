@@ -54,6 +54,10 @@
     .status { margin-top: 12px; font-weight: 600; }
     .typed-count { text-align: right; margin: 2px 0 8px; font-size: 13px; }
     .card-title { font-size: 16px; margin: 16px 0 8px; }
+    .option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .option:has(input:disabled) { cursor: default; }
+    .answer-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; }
+    .doubt-queue button.upvoted { background: var(--ok); }
     #my-marks .card-title { margin-top: 0; }
     .doubt-queue { list-style: none; margin: 0; padding: 0; }
     .doubt-queue li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--border); }
@@ -105,6 +109,7 @@
           <button type="submit" id="submit-answer">Submit answer</button>
         </form>
         <p id="answer-status" class="status"></p>
+        <p id="my-typed" class="answer-text" hidden>Your answer: <span id="my-typed-text"></span></p>
         <button type="button" id="fullscreen" class="secondary">Full screen</button>
       </div>
     </div>

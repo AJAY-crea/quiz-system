@@ -109,6 +109,21 @@ public class DoubtsService {
         }
     }
 
+    /** A student takes back their upvote. Pressing again (or with no upvote) changes nothing. */
+    public void removeUpvote(Long sessionId, Long doubtId, String rollNo, String deviceToken) {
+        requireSession(sessionId);
+        requireThisPhone(sessionId, rollNo, deviceToken);
+        doubtRepository
+                .findByIdAndSessionId(doubtId, sessionId)
+                .orElseThrow(() -> new NoSuchElementException("doubt not found: " + doubtId));
+        // Delete and decrement together: the count only drops if this student's upvote really existed.
+        writeTransaction.executeWithoutResult(status -> {
+            if (upvoteRepository.removeVote(doubtId, rollNo) == 1) {
+                doubtRepository.removeUpvote(doubtId);
+            }
+        });
+    }
+
     /** The open doubts a student can see: most upvoted first, then oldest. Never says who asked. */
     @Transactional(readOnly = true)
     public DoubtQueue queueFor(Long sessionId, String rollNo, String deviceToken) {

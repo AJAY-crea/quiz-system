@@ -119,6 +119,28 @@ class DoubtsServiceTest {
         assertThat(doubts.forInstructor(quiz.sessionId)).hasSize(1); // she still sees it
     }
 
+    // Guards against: an upvote that can't be taken back, or taking it back twice lowering the count twice.
+    @Test
+    void anUpvoteCanBeTakenBackOnce() {
+        String asker = "CS23B968";
+        String voter = "CS23B969";
+        TestQuiz quiz = TestQuiz.startWithReleasedMcq(ctx, 60, asker, voter);
+        doubts.submit(quiz.sessionId, asker, TestQuiz.deviceOf(asker), "changed my mind");
+        Long id = idOf(quiz, voter, "changed my mind");
+        doubts.upvote(quiz.sessionId, id, voter, TestQuiz.deviceOf(voter));
+
+        doubts.removeUpvote(quiz.sessionId, id, voter, TestQuiz.deviceOf(voter));
+        doubts.removeUpvote(quiz.sessionId, id, voter, TestQuiz.deviceOf(voter));
+
+        DoubtQueue.Item item = doubts.queueFor(quiz.sessionId, voter, TestQuiz.deviceOf(voter)).doubts().get(0);
+        assertThat(item.upvotes()).isZero();
+        assertThat(item.upvotedByMe()).isFalse();
+        doubts.upvote(quiz.sessionId, id, voter, TestQuiz.deviceOf(voter)); // and can upvote again
+        assertThat(doubts.queueFor(quiz.sessionId, voter, TestQuiz.deviceOf(voter)).doubts().get(0).upvotes()).isEqualTo(1);
+        assertThatThrownBy(() -> doubts.removeUpvote(quiz.sessionId, id, voter, "dev-other"))
+                .isInstanceOf(NotAParticipantException.class);
+    }
+
     /** The id of a doubt, found as a student would find it. */
     private Long idOf(TestQuiz quiz, String rollNo, String text) {
         return doubts.queueFor(quiz.sessionId, rollNo, TestQuiz.deviceOf(rollNo)).doubts().stream()
