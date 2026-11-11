@@ -1,0 +1,47 @@
+# Runs every test, builds the Docker image, checks the container really serves the app, and saves the
+# image as a downloadable file (Actions run page -> Artifacts) for the course submission.
+name: Docker image
+
+on:
+  push:
+    tags: ['final-submission']
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run all tests
+        run: mvn -B -q test
+
+      - name: Build the image (tagged with the commit SHA)
+        run: docker build -t quiz-system:${GITHUB_SHA} .
+
+      - name: Check the container serves the app and the instructor link works
+        run: |
+          docker run -d --name quiz -p 8080:8080 quiz-system:${GITHUB_SHA}
+          for i in $(seq 1 60); do curl -sf http://localhost:8080/student.html > /dev/null && break; sleep 2; done
+          curl -sf http://localhost:8080/student.html > /dev/null
+          LINK=$(docker logs quiz 2>&1 | grep -o 'http://localhost:8080/instructor.html?key=[A-Za-z0-9_-]*' | head -1)
+          test -n "$LINK"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/dashboard/sessions)" = "403"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -c cookies.txt "$LINK")" = "302"
+          curl -sf -b cookies.txt http://localhost:8080/api/dashboard/sessions
+          docker rm -f quiz
+
+      - name: Save the image to a file
+        run: docker save quiz-system:${GITHUB_SHA} | gzip > quiz-system-${GITHUB_SHA}.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quiz-system-docker-image
+          path: quiz-system-*.tar.gz
+          retention-days: 30

@@ -19,6 +19,21 @@ Starts on http://localhost:8080. The H2 console is at /h2-console (JDBC URL
 ./mvnw test
 ```
 
+## Run with Docker
+
+The image is built by `.github/workflows/docker-image.yml` (all tests, build, a start-up check) and saved
+as `quiz-system-<commit-sha>.tar.gz`.
+
+```
+docker load -i quiz-system-<commit-sha>.tar.gz
+docker run -p 8080:8080 quiz-system:<commit-sha>
+```
+
+Open the **"Instructor dashboard: http://localhost:8080/instructor.html?key=…"** link that the container
+prints at start-up. Inside Docker the browser isn't "this laptop", so the dashboard needs that link.
+Students open `http://<this machine's address>:8080/student.html` by scanning the QR on the dashboard.
+Add `-v quizdata:/data` to keep the database between runs. Build it yourself with `docker build -t quiz-system .`.
+
 ## Running a class
 
 1. On the instructor's laptop, open **http://localhost:8080/instructor.html**. This page and all
@@ -185,3 +200,12 @@ Everything runs on one laptop, so this tests the server and database, not the cl
 - Question upload is `/api/sessions/{id}/questions/upload`, because a question belongs to a session.
 - Added beyond the design doc: marks per question, students' own marks, answer-key fix, close
   question, end session, the switch that stops sharing doubts with students.
+
+## Contact
+
+- Veliginti Ajay Kumar Reddy (CS23B065), cs23b065@smail.iitm.ac.in: roster and joining, question bank,
+  scoring and marking, attendance, analytics, export, dashboard, instructor link.
+- Babbadi Mukesh Chandu (EE23B093), ee23b093@smail.iitm.ac.in: session engine, timing, resilience,
+  integrity signals, doubts, load test.
+
+Weekly contribution log: `CONTRIBUTIONS.md`. Prompts used and AI mistakes found: `PROMPT_LOG.md`.
